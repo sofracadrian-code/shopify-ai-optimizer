@@ -13,8 +13,11 @@ export default function Home() {
       header: true,
       skipEmptyLines: true,
       complete: (results) => {
-        // Adăugăm un status inițial pentru fiecare produs găsit în CSV
-        const mapped = results.data.map(p => ({
+        // FILTRARE INTELIGENTĂ: Păstrăm DOAR rândurile principale care au un Titlu valid
+        const onlyMainProducts = results.data.filter(p => p.Title && p.Title.trim() !== '');
+        
+        // Mapăm produsele pentru a le pregăti de afișare și procesare
+        const mapped = onlyMainProducts.map(p => ({
           ...p,
           aiStatus: 'În așteptare',
           aiCategory: '-'
@@ -24,15 +27,15 @@ export default function Home() {
     });
   };
 
-  // Funcția care trimite rând pe rând produsele către backend-ul tău cu OpenAI
+  // Funcția care trimite produsele filtrate către backend-ul cu OpenAI
   const startAIOptimization = async () => {
     if (products.length === 0) return;
     setLoading(true);
 
     const updatedProducts = [...products];
 
-    // Procesăm primele 5 produse ca test complet live
-    const limit = Math.min(products.length, 5); 
+    // Am mărit limita la 20 de produse pentru un test mai amplu
+    const limit = Math.min(products.length, 20); 
 
     for (let i = 0; i < limit; i++) {
       updatedProducts[i].aiStatus = 'Se procesează...';
@@ -54,7 +57,7 @@ export default function Home() {
 
         if (data.success) {
           updatedProducts[i].aiStatus = 'Optimizat';
-          updatedProducts[i].aiCategory = data.category; // Categoria întoarsă de gpt-4o-mini
+          updatedProducts[i].aiCategory = data.category; // Categoria întoarsă de OpenAI
         } else {
           updatedProducts[i].aiStatus = 'Eroare AI';
         }
@@ -99,33 +102,4 @@ export default function Home() {
       {products.length > 0 && (
         <div style={{ backgroundColor: '#fff', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-            <thead style={{ backgroundColor: '#f3f4f6', borderBottom: '1px solid #e5e7eb' }}>
-              <tr>
-                <th style={{ padding: '12px 16px', color: '#374151', fontWeight: '600' }}>Titlu Original</th>
-                <th style={{ padding: '12px 16px', color: '#374151', fontWeight: '600' }}>Categorie GMC (AI)</th>
-                <th style={{ padding: '12px 16px', color: '#374151', fontWeight: '600' }}>Status Procesare</th>
-              </tr>
-            </thead>
-            <tbody>
-              {products.slice(0, 10).map((prod, index) => (
-                <tr key={index} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                  <td style={{ padding: '12px 16px', color: '#111827', fontWeight: '500' }}>{prod.Title || prod.title}</td>
-                  <td style={{ padding: '12px 16px', color: '#2563eb', fontWeight: '600', textTransform: 'uppercase', fontSize: '14px' }}>{prod.aiCategory}</td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{ 
-                      backgroundColor: prod.aiStatus === 'Optimizat' ? '#dcfce7' : prod.aiStatus === 'Se procesează...' ? '#fef9c3' : '#e5e7eb', 
-                      color: prod.aiStatus === 'Optimizat' ? '#166534' : prod.aiStatus === 'Se procesează...' ? '#854d0e' : '#374151', 
-                      padding: '4px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: '500' 
-                    }}>
-                      {prod.aiStatus}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
+            <thead style={{ backgroundColor: '#f3f4f6', borderBottom: '1px solid #
