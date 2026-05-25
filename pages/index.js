@@ -13,10 +13,8 @@ export default function Home() {
       header: true,
       skipEmptyLines: true,
       complete: (results) => {
-        // FILTRARE INTELIGENTĂ: Păstrăm DOAR rândurile principale care au un Titlu valid
-        const onlyMainProducts = results.data.filter(p => p.Title && p.Title.trim() !== '');
-        
-        // Mapăm produsele pentru a le pregăti de afișare și procesare
+        if (!results.data) return;
+        const onlyMainProducts = results.data.filter(p => p && p.Title && p.Title.trim() !== '');
         const mapped = onlyMainProducts.map(p => ({
           ...p,
           aiStatus: 'În așteptare',
@@ -27,14 +25,11 @@ export default function Home() {
     });
   };
 
-  // Funcția care trimite produsele filtrate către backend-ul cu OpenAI
   const startAIOptimization = async () => {
     if (products.length === 0) return;
     setLoading(true);
 
     const updatedProducts = [...products];
-
-    // Am mărit limita la 20 de produse pentru un test mai amplu
     const limit = Math.min(products.length, 20); 
 
     for (let i = 0; i < limit; i++) {
@@ -55,9 +50,9 @@ export default function Home() {
 
         const data = await response.json();
 
-        if (data.success) {
+        if (data && data.success) {
           updatedProducts[i].aiStatus = 'Optimizat';
-          updatedProducts[i].aiCategory = data.category; // Categoria întoarsă de OpenAI
+          updatedProducts[i].aiCategory = data.category;
         } else {
           updatedProducts[i].aiStatus = 'Eroare AI';
         }
@@ -78,7 +73,6 @@ export default function Home() {
         <p style={{ color: '#4b5563' }}>Încarcă fișierul CSV și pornește sortarea și curățarea automată cu OpenAI.</p>
       </header>
 
-      {/* Zona de Upload și Butonul de Start */}
       <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '30px', display: 'flex', gap: '20px', alignItems: 'center' }}>
         <input 
           type="file" 
@@ -98,8 +92,41 @@ export default function Home() {
         )}
       </div>
 
-      {/* Tabelul cu rezultate live */}
       {products.length > 0 && (
-        <div style={{ backgroundColor: '#fff', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+        <div style={{ backgroundColor: '#fff', borderRadius: '#8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-            <thead style={{ backgroundColor: '#f3f4f6', borderBottom: '1px solid #
+            <thead style={{ backgroundColor: '#f3f4f6', borderBottom: '1px solid #e5e7eb' }}>
+              <tr>
+                <th style={{ padding: '12px 16px', color: '#374151', fontWeight: '600' }}>Titlu Original</th>
+                <th style={{ padding: '12px 16px', color: '#374151', fontWeight: '600' }}>Categorie GMC (AI)</th>
+                <th style={{ padding: '12px 16px', color: '#374151', fontWeight: '600' }}>Status Procesare</th>
+              </tr>
+            </thead>
+            <tbody>
+              {products.slice(0, 20).map((prod, index) => (
+                <tr key={index} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                  <td style={{ padding: '12px 16px', color: '#111827', fontWeight: '500' }}>{prod.Title || prod.title}</td>
+                  <td style={{ padding: '12px 16px', color: '#2563eb', fontWeight: '600', textTransform: 'uppercase', fontSize: '14px' }}>{prod.aiCategory}</td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <span style={{ 
+                      backgroundColor: prod.aiStatus === 'Optimizat' ? '#dcfce7' : prod.aiStatus === 'Se procesează...' ? '#fef9c3' : '#e5e7eb', 
+                      color: prod.aiStatus === 'Optimizat' ? '#166534' : prod.aiStatus === 'Se procesează...' ? '#854d0e' : '#374151', 
+                      padding: '4px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: '500' 
+                    }}>
+                      {prod.aiStatus}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {products.length > 20 && (
+            <p style={{ padding: '16px', color: '#6b7280', fontSize: '14px', fontStyle: 'italic' }}>
+              Se afișează primele 20 de produse dintr-un total de {products.length} găsite în CSV.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
