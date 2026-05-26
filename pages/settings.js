@@ -6,13 +6,13 @@ import Link from 'next/link';
 // ==========================================
 import { SHOPIFY_DEFAULT_PROMPT } from '../src/prompts/shopify/default.js';
 import { SHOPIFY_ELECTRONICS_PROMPT } from '../src/prompts/shopify/electronics.js';
-import { SHOPIFY_FASHION_PROMPT } from '../src/prompts/shopify/fashion.js'; // Corectat calea aici
+import { SHOPIFY_FASHION_PROMPT } from '../src/prompts/shopify/fashion.js'; // <- ASIGURĂ-TE CĂ ARATĂ EXACT AȘA!
 import { SHOPIFY_HOME_PROMPT } from '../src/prompts/shopify/home.js';
 import { SHOPIFY_MOBILITY_PROMPT } from '../src/prompts/shopify/mobility.js';
 import { SHOPIFY_TOOLS_PROMPT } from '../src/prompts/shopify/tools.js';
 
 // ==========================================
-// 2. IMPORTURI INDIVIDUALE PENTRU GMC (Google Merchant Center)
+// 2. IMPORTURI INDIVIDUALE PENTRU GMC
 // ==========================================
 import { GMC_DEFAULT_PROMPT } from '../src/prompts/gmc/default.js';
 import { GMC_ELECTRONICS_PROMPT } from '../src/prompts/gmc/electronics.js';
@@ -22,12 +22,13 @@ import { GMC_MOBILITY_PROMPT } from '../src/prompts/gmc/mobility.js';
 import { GMC_TOOLS_PROMPT } from '../src/prompts/gmc/tools.js';
 
 // ==========================================
-// 3. IMPORTUL PENTRU TAG-UL DE VALIDARE
+// 3. IMPORTUL PENTRU TAG-UL DE VALIDARE (Aici citim direct din src)
 // ==========================================
-// CUM TREBUIE SĂ FIE (CORECT):
-import { AI_OPTIMIZER_TAG } from '../src/constants.js';
+import { AI_OPTIMIZER_TAG } from '../src/constants.js'; 
 
 const CATEGORIES = ['default', 'tools', 'electronics', 'fashion', 'mobility', 'home'];
+
+// Restul codului cu "export default function Settings()..." rămâne neschimbat
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('default');
