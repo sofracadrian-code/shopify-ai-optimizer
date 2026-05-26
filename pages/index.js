@@ -49,7 +49,6 @@ export default function Home() {
     });
   };
 
-  // GENERAREA PRINCIPALĂ: Doar Categorie + Shopify (Economisește credit)
   const startShopifyOptimization = async () => {
     if (products.length === 0) return;
     setLoading(true);
@@ -62,7 +61,6 @@ export default function Home() {
       setProducts([...updatedProducts]);
 
       try {
-        // 1. Detectare Categorie
         const classResponse = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -75,10 +73,8 @@ export default function Home() {
         const category = (classData.category || 'default').toLowerCase();
         updatedProducts[i].detectedCategory = category.toUpperCase();
 
-        // 2. Extragere doar Prompt Shopify
         const activeShopifyPrompt = localStorage.getItem(`shopify_${category}`) || localStorage.getItem('shopify_default');
 
-        // 3. Apel OpenAI doar pentru Shopify (Single Mode)
         const response = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -117,7 +113,6 @@ export default function Home() {
     setLoading(false);
   };
 
-  // GENERAREA MANUALĂ: Doar pentru produsele alese de tine pentru GMC
   const generateGmcForSingleProduct = async (index) => {
     setGmcLoadingIndex(index);
     const updatedProducts = [...products];
@@ -195,7 +190,7 @@ export default function Home() {
         
         {products.length > 0 && (
           <button onClick={startShopifyOptimization} disabled={loading} style={{ backgroundColor: loading ? '#9ca3af' : '#2563eb', color: '#fff', padding: '10px 20px', borderRadius: '6px', border: 'none', fontSize: '16px', fontWeight: '600', cursor: loading ? 'not-allowed' : 'pointer' }}>
-            {loading ? 'Se procesează Shopify...' : 'Pornește Optimizarea Shopify'}
+            {loading ? 'Se procesează...' : 'Pornește Optimizarea Shopify'}
           </button>
         )}
 
@@ -215,7 +210,7 @@ export default function Home() {
                 <th style={{ padding: '12px 16px', color: '#374151' }}>Categorie</th>
                 <th style={{ padding: '12px 16px', color: '#374151' }}>Titlu Shopify (SEO)</th>
                 <th style={{ padding: '12px 16px', color: '#374151' }}>Titlu GMC (Factual)</th>
-                <th style={{ padding: '12px 16px', color: '#374151' }}>Acțiuni GMC</th>
+                <th style={{ padding: '12px 16px', color: '#374151' }}>Status / Acțiuni</th>
               </tr>
             </thead>
             <tbody>
@@ -223,7 +218,9 @@ export default function Home() {
                 <tr key={index} style={{ borderBottom: '1px solid #e5e7eb' }}>
                   <td style={{ padding: '12px 16px', color: '#111827', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prod.Title || prod.title}</td>
                   <td style={{ padding: '12px 16px', color: '#2563eb', fontWeight: 'bold', fontSize: '12px' }}>{prod.detectedCategory}</td>
-                  <td style={{ padding: '12px 16px', color: '#16a34a', fontWeight: '500' }}>{prod.optimizedTitle || '-'}</td>
+                  <td style={{ padding: '12px 16px', color: '#16a34a', fontWeight: '500' }}>
+                    {prod.aiStatus === 'Se procesează...' ? 'Generare...' : (prod.optimizedTitle || '-')}
+                  </td>
                   <td style={{ padding: '12px 16px', color: '#ea580c', fontWeight: '500', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prod.gmcTitle || '-'}</td>
                   <td style={{ padding: '12px 16px' }}>
                     {prod.aiStatus === 'Optimizat' && prod.gmcStatus === 'Neinițiat' && (
@@ -235,13 +232,13 @@ export default function Home() {
                         + Generează GMC
                       </button>
                     )}
-                    {prod.gmcStatus !== 'Neinițiat' && (
+                    {(prod.aiStatus === 'Se procesează...' || prod.gmcStatus !== 'Neinițiat') && (
                       <span style={{ 
-                        backgroundColor: prod.gmcStatus === 'GMC Gata' ? '#ffedd5' : '#f3f4f6', 
+                        backgroundColor: prod.gmcStatus === 'GMC Gata' ? '#ffedd5' : '#e5e7eb', 
                         color: prod.gmcStatus === 'GMC Gata' ? '#c2410c' : '#374151', 
                         padding: '4px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: '600' 
                       }}>
-                        {prod.gmcStatus}
+                        {prod.gmcStatus !== 'Neinițiat' ? prod.gmcStatus : prod.aiStatus}
                       </span>
                     )}
                   </td>
