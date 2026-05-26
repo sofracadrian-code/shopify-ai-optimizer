@@ -10,9 +10,27 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { title, description, type, tags, shopifyPrompt, gmcPrompt } = req.body;
+    const { title, description, type, tags, shopifyPrompt, gmcPrompt, isClassifierOnly } = req.body;
 
-    // Pregătim datele brute ale produsului pe care AI-ul le va analiza
+    // SITUAȚIA A: Rulăm DOAR pentru a afla categoria produsului (Classifier)
+    if (isClassifierOnly) {
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'Ești un detector de categorii eCommerce. Răspunde strict cu un singur cuvânt din următoarea listă, în funcție de titlul oferit: TOOLS, ELECTRONICS, FASHION, MOBILITY, HOME. Dacă nu se potrivește în niciuna, răspunde cu DEFAULT.'
+          },
+          { role: 'user', content: `Determină categoria pentru produsul: ${title}` }
+        ],
+        temperature: 0.1,
+      });
+
+      const category = response.choices[0]?.message?.content?.trim() || 'DEFAULT';
+      return res.status(200).json({ success: true, category: category });
+    }
+
+    // SITUAȚIA B: Rulăm generarea completă în paralel folosind prompturile specifice primite
     const productData = `
 Titlu Original: ${title || '-'}
 Descriere Originală: ${description || '-'}
@@ -20,40 +38,27 @@ Tip Produs: ${type || '-'}
 Taguri Originale: ${tags || '-'}
 `;
 
-    // Lansăm ambele apeluri către OpenAI în același timp (în paralel) ca să economisim timp
     const [shopifyResponse, gmcResponse] = await Promise.all([
       openai.chat.completions.create({
         model: 'gpt-4o-mini',
-        messages: [
-          { role: 'user', content: `${shopifyPrompt}\n\n${productData}` }
-        ],
-        temperature: 0.3, // Temperatură mică pentru a rămâne strict pe datele oferite
+        messages: [{ role: 'user', content: `${shopifyPrompt}\n\n${productData}` }],
+        temperature: 0.3,
       }),
       openai.chat.completions.create({
         model: 'gpt-4o-mini',
-        messages: [
-          { role: 'user', content: `${gmcPrompt}\n\n${productData}` }
-        ],
-        temperature: 0.1, // Temperatură și mai mică pentru GMC (vrem acuratețe maximă, zero marketing)
+        messages: [{ role: 'user', content: `${gmcPrompt}\n\n${productData}` }],
+        temperature: 0.1,
       })
     ]);
 
-    // Extragem textul brut întors de cele două prompturi
-    const shopifyResult = shopifyResponse.choices[0]?.message?.content || '';
-    const gmcResult = gmcResponse.choices[0]?.message?.content || '';
-
-    // Trimitem textele împachetate direct la frontend
     return res.status(200).json({
       success: true,
-      shopifyResult: shopifyResult,
-      gmcResult: gmcResult
+      shopifyResult: shopifyResponse.choices[0]?.message?.content || '',
+      gmcResult: gmcResponse.choices[0]?.message?.content || ''
     });
 
   } catch (error) {
-    console.error('Eroare Backend AI:', error);
-    return res.status(500).json({ 
-      success: false, 
-      error: error.message || 'Eroare internă de server la generarea AI' 
-    });
+    console.error('Eroare Backend:', error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 }
