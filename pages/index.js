@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 export default function Home() {
   const [products, setProducts] = useState([]);
-  const [selectedProductIds, setSelectedProductIds] = useState([]); // Urmărește indecșii produselor bifate
+  const [selectedProductIds, setSelectedProductIds] = useState([]); 
   const [loading, setLoading] = useState(false);
   const [gmcLoadingIndex, setGmcLoadingIndex] = useState(null);
   const [regenLoadingField, setRegenLoadingField] = useState(null); 
@@ -40,10 +40,21 @@ export default function Home() {
       skipEmptyLines: true,
       complete: (results) => {
         if (!results.data) return;
+        
+        // Filtrare și mapare inteligentă a imaginilor din coloane multiple posibile
         const onlyMainProducts = results.data.filter(p => p && p.Title && p.Title.trim() !== '');
         const mapped = onlyMainProducts.map(p => {
-          const existingSrc = p["Image Src"] || p["image_src"] || p["Image URL"] || "";
-          const imagesArray = existingSrc ? existingSrc.split(',').map(img => img.trim()).filter(Boolean) : [];
+          // Verificăm toate denumirile comune de coloane pentru imagini din Shopify / sisteme ERP
+          const src1 = p["Image Src"] || p["image_src"] || p["Image URL"] || p["Variant Image"] || "";
+          const src2 = p["Line text"] || p["URL"] || ""; // Fallback în caz de structuri custom
+          
+          let combinedSrc = `${src1},${src2}`;
+          const imagesArray = combinedSrc 
+            ? combinedSrc.split(/[\s,]+/).map(img => img.trim()).filter(img => img.startsWith('http'))
+            : [];
+
+          // Eliminăm duplicatele de URL-uri dacă există în aceeași celulă
+          const uniqueImages = [...new Set(imagesArray)];
 
           return {
             ...p,
@@ -68,19 +79,17 @@ export default function Home() {
             color: '',
             size: '',
             material: '',
-            productImages: imagesArray
+            productImages: uniqueImages
           };
         });
         setProducts(mapped);
-        // Resetăm selecția la un nou import
         setSelectedProductIds([]);
       },
     });
   };
 
-  // LOGICĂ BIFE: Selectare individuală
   const handleSelectProduct = (index, e) => {
-    e.stopPropagation(); // Oprește deschiderea pop-up-ului când pui bifa
+    e.stopPropagation(); 
     if (selectedProductIds.includes(index)) {
       setSelectedProductIds(selectedProductIds.filter(id => id !== index));
     } else {
@@ -88,10 +97,9 @@ export default function Home() {
     }
   };
 
-  // LOGICĂ BIFE: Selectare / Deselectare TOATE produsele vizibile
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      const limit = Math.min(products.length, 20); // Păstrăm limita setată în vizualizare dacă e cazul
+      const limit = Math.min(products.length, 20); 
       const allIndexes = Array.from({ length: limit }, (_, i) => i);
       setSelectedProductIds(allIndexes);
     } else {
@@ -99,16 +107,13 @@ export default function Home() {
     }
   };
 
-  // PROCESARE BAZATĂ PE SELECȚIE
   const startShopifyOptimization = async () => {
     if (selectedProductIds.length === 0) return;
     setLoading(true);
 
     const updatedProducts = [...products];
 
-    // Procesăm DOAR indecșii care au fost bifați de tine
     for (const i of selectedProductIds) {
-      // Sărim peste cele care sunt deja în procesare sau optimizate, opțional, dar acum le forțăm la cerere
       updatedProducts[i].aiStatus = 'Se procesează...';
       setProducts([...updatedProducts]);
 
@@ -189,7 +194,7 @@ export default function Home() {
         body: JSON.stringify({
           title: updatedProducts[index].Title || updatedProducts[index].title,
           description: updatedProducts[index].Body || updatedProducts[index].description,
-          type: updatedProducts[index].Type || updatedProducts[index].type,
+          type: updatedProducts[index].Type || updatedProducts[i].type,
           tags: updatedProducts[index].Tags || updatedProducts[index].tags,
           gmcPrompt: activeGmcPrompt,
           runGmcOnly: true
@@ -224,6 +229,7 @@ export default function Home() {
     setGmcLoadingIndex(null);
   };
 
+  // CORECTURĂ: Forțăm limba germană direct în structura micro-promptului trimis la API
   const regenerateSingleField = async (fieldKey, tagLabel, isGmc = false) => {
     setRegenLoadingField(fieldKey);
     const category = (editingProduct.detectedCategory || 'default').toLowerCase();
@@ -232,10 +238,12 @@ export default function Home() {
       : (localStorage.getItem(`shopify_${category}`) || localStorage.getItem('shopify_default'));
 
     const localizedPrompt = `
-      Te bazezi pe regulile generale din acest prompt:
       ${activePrompt}
-      ACȚIUNE SPECIFICĂ: Generează ACUM strict segmentul [${tagLabel}] pentru produsul de mai jos. 
-      Returnează doar valoarea optimizată încadrată de etichete, de exemplu: [${tagLabel}]conținut[/${tagLabel}]. Nu adăuga alte secțiuni.
+      
+      STRICT MANDATE: 
+      1. You must generate the content exclusively in GERMAN language (Auf Deutsch). Do not use Romanian or English for the values.
+      2. Generate NOW strictly the segment [${tagLabel}] for the product below.
+      3. Return ONLY the optimized value wrapped in the exact tags, like this: [${tagLabel}]content_here[/${tagLabel}]. Do not output any other section or introductory text.
     `;
 
     try {
@@ -393,13 +401,12 @@ export default function Home() {
         )}
       </div>
 
-      {/* TABEL CENTRAL CU CONTROL SELECȚIE */}
+      {/* TABEL CENTRAL */}
       {products.length > 0 && (
         <div style={{ backgroundColor: '#fff', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead style={{ backgroundColor: '#f3f4f6', borderBottom: '1px solid #e5e7eb' }}>
               <tr>
-                {/* BIFĂ GLOBALĂ */}
                 <th style={{ padding: '12px 16px', width: '40px', textAlign: 'center' }}>
                   <input 
                     type="checkbox" 
@@ -424,7 +431,6 @@ export default function Home() {
                   onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                 >
-                  {/* BIFĂ INDIVIDUALĂ */}
                   <td style={{ padding: '12px 16px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                     <input 
                       type="checkbox" 
@@ -466,7 +472,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* POP-UP-UL DE EDITARE (A RĂMAS NESCHIMBAT) */}
+      {/* POP-UP DETALII */}
       {editingProduct && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '20px' }}>
           <div style={{ backgroundColor: '#fff', borderRadius: '8px', width: '100%', maxWidth: '980px', maxHeight: '95vh', overflowY: 'auto', padding: '30px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
