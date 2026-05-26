@@ -1,6 +1,9 @@
+// src/main.js - Liniile de import actualizate conform structurii tale din imagini
 import { detectCategory, detectCategoriesBatch } from './utils/detectCategory.js';
 import { shouldSkipProduct } from './utils/shouldSkip.js';
-import { AI_OPTIMIZER_TAG } from './config/constants.js';
+
+// Adăugăm "/prompts/" în calea de import ca să citească fișierele perfecte scrise de Claude
+import { AI_OPTIMIZER_TAG } from './prompts/constants.js';
 
 import {
   SHOPIFY_ELECTRONICS_PROMPT,
@@ -9,7 +12,7 @@ import {
   SHOPIFY_HOME_PROMPT,
   SHOPIFY_TOOLS_PROMPT,
   SHOPIFY_DEFAULT_PROMPT
-} from './shopify/index.js';
+} from './prompts/shopify/index.js';
 
 import {
   GMC_ELECTRONICS_PROMPT,
@@ -18,7 +21,9 @@ import {
   GMC_HOME_PROMPT,
   GMC_TOOLS_PROMPT,
   GMC_DEFAULT_PROMPT
-} from './gmc/index.js';
+} from './prompts/gmc/index.js';
+
+// restul codului rămâne exact la fel...
 
 // Prompt selectie
 function selectPrompt(category, type) {
