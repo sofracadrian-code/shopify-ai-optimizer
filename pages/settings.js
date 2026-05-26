@@ -2,17 +2,17 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 // ==========================================
-// 1. IMPORTURI INDIVIDUALE PENTRU SHOPIFY (Adăugate acum)
+// 1. IMPORTURI INDIVIDUALE PENTRU SHOPIFY 
 // ==========================================
 import { SHOPIFY_DEFAULT_PROMPT } from '../src/prompts/shopify/default.js';
 import { SHOPIFY_ELECTRONICS_PROMPT } from '../src/prompts/shopify/electronics.js';
-import { SHOPIFY_FASHION_PROMPT } from '../src/prompts/fashion.js'; // Atenție dacă Adrian a pus fashion direct în src sau în shopify
+import { SHOPIFY_FASHION_PROMPT } from '../src/prompts/shopify/fashion.js'; // Corectat calea aici
 import { SHOPIFY_HOME_PROMPT } from '../src/prompts/shopify/home.js';
 import { SHOPIFY_MOBILITY_PROMPT } from '../src/prompts/shopify/mobility.js';
 import { SHOPIFY_TOOLS_PROMPT } from '../src/prompts/shopify/tools.js';
 
 // ==========================================
-// 2. IMPORTURI INDIVIDUALE PENTRU GMC (Adăugate acum)
+// 2. IMPORTURI INDIVIDUALE PENTRU GMC (Google Merchant Center)
 // ==========================================
 import { GMC_DEFAULT_PROMPT } from '../src/prompts/gmc/default.js';
 import { GMC_ELECTRONICS_PROMPT } from '../src/prompts/gmc/electronics.js';
@@ -22,14 +22,11 @@ import { GMC_MOBILITY_PROMPT } from '../src/prompts/gmc/mobility.js';
 import { GMC_TOOLS_PROMPT } from '../src/prompts/gmc/tools.js';
 
 // ==========================================
-// 3. IMPORTUL PENTRU TAG-UL DE VALIDARE (Înlocuit cel vechi)
+// 3. IMPORTUL PENTRU TAG-UL DE VALIDARE
 // ==========================================
 import { AI_OPTIMIZER_TAG } from '../src/prompts/constants.js';
 
-// Lista de categorii pentru butoanele de pe ecran (Rămâne neatinsă)
 const CATEGORIES = ['default', 'tools', 'electronics', 'fashion', 'mobility', 'home'];
-
-// De aici încolo continuă codul paginii lui Adrian...
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('default');
@@ -51,7 +48,7 @@ export default function Settings() {
 
   return (
     <div style={{ padding: '40px', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
-      <header style={{ marginBottom: '30px', display: 'flex', justifyContent: 'between', alignItems: 'center' }}>
+      <header style={{ marginBottom: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 style={{ color: '#111827', fontSize: '28px', fontWeight: 'bold', margin: 0 }}>Panou Setări Prompturi</h1>
           <p style={{ color: '#4b5563', margin: '5px 0 0 0' }}>Configurează prompturile specifice pentru fiecare categorie de produs.</p>
@@ -86,7 +83,7 @@ export default function Settings() {
           <textarea
             value={prompts[`shopify_${activeTab}`] || ''}
             onChange={(e) => handleChange(`shopify_${activeTab}`, e.target.value)}
-            style={{ width: '100%', height: '400px', padding: '12px', borderRadius: '6px', border: '1px solid #d1d5db', fontFamily: 'monospace', fontSize: '13px', lineHeight: '1.5' }}
+            style={{ width: '100%', height: '500px', padding: '12px', borderRadius: '6px', border: '1px solid #d1d5db', fontFamily: 'monospace', fontSize: '13px', lineHeight: '1.5' }}
           />
         </div>
 
@@ -95,20 +92,37 @@ export default function Settings() {
           <textarea
             value={prompts[`gmc_${activeTab}`] || ''}
             onChange={(e) => handleChange(`gmc_${activeTab}`, e.target.value)}
-            style={{ width: '100%', height: '400px', padding: '12px', borderRadius: '6px', border: '1px solid #d1d5db', fontFamily: 'monospace', fontSize: '13px', lineHeight: '1.5' }}
+            style={{ width: '100%', height: '500px', padding: '12px', borderRadius: '6px', border: '1px solid #d1d5db', fontFamily: 'monospace', fontSize: '13px', lineHeight: '1.5' }}
           />
         </div>
       </div>
-      <p style={{ marginTop: '15px', color: '#16a34a', fontWeight: '500', fontStyle: 'italic' }}>✓ Modificările se salvează automat în timp ce tastezi!</p>
+      <p style={{ marginTop: '15px', color: '#16a34a', fontWeight: '500', fontStyle: 'italic' }}>✓ Modificările se salvează automat în timp ce tastezi în memoria browserului!</p>
     </div>
   );
 }
 
-// Structuri implicite în caz că memoria e goală
+// Rutează dinamic textul corect din fișierele aduse de la Claude pentru Shopify
 function getDefaultShopify(cat) {
-  return `Ești expert SEO eCommerce pentru Germania. Categoria: ${cat.toUpperCase()}.\n\nOBLIGATORIU:\n- Rezultatul final în germană.\n- Nu inventa specificații.\n- Nu modifica SKU.\n\nGenerează:\n\n[TITLE]\nTitlu SEO 50–70 caractere potrivit pentru ${cat}\n[/TITLE]\n\n[BODY]\nDescriere HTML 300–600 cuvinte\n[/BODY]\n\n[SEOTITLE]\nMax 60 caractere\n[/SEOTITLE]\n\n[SEODESC]\nMax 155 caractere\n[/SEODESC]\n\n[TAGS]\nTaguri separate prin virgulă\n[/TAGS]\n\n[ALT]\nAlt text imagine\n[/ALT]`;
+  const mapping = {
+    default: SHOPIFY_DEFAULT_PROMPT,
+    tools: SHOPIFY_TOOLS_PROMPT,
+    electronics: SHOPIFY_ELECTRONICS_PROMPT,
+    fashion: SHOPIFY_FASHION_PROMPT,
+    mobility: SHOPIFY_MOBILITY_PROMPT,
+    home: SHOPIFY_HOME_PROMPT
+  };
+  return mapping[cat] || SHOPIFY_DEFAULT_PROMPT;
 }
 
+// Rutează dinamic textul corect din fișierele aduse de la Claude pentru GMC
 function getDefaultGmc(cat) {
-  return `Ești expert Google Merchant Center pentru Germania. Categoria: ${cat.toUpperCase()}.\n\nOBLIGATORIU:\n- Rezultatul final în germană.\n- Nu folosi limbaj promoțional.\n- Nu folosi HTML.\n\nGenerează:\n\n[GMC_TITLE]\nTitlu factual\n[/GMC_TITLE]\n\n[GMC_DESCRIPTION]\nDescriere factuală 150–500 caractere\n[/GMC_DESCRIPTION]\n\n[PRODUCT_TYPE]\nTip produs\n[/PRODUCT_TYPE]\n\n[GOOGLE_CATEGORY]\nCategorie Google\n[/GOOGLE_CATEGORY]\n\n[BRAND]\nBrand\n[/BRAND]\n\n[COLOR]\nCuloare\n[/COLOR]\n\n[SIZE]\nMărime\n[/SIZE]\n\n[MATERIAL]\nMaterial\n[/MATERIAL]`;
+  const mapping = {
+    default: GMC_DEFAULT_PROMPT,
+    tools: GMC_TOOLS_PROMPT,
+    electronics: GMC_ELECTRONICS_PROMPT,
+    fashion: GMC_FASHION_PROMPT,
+    mobility: GMC_MOBILITY_PROMPT,
+    home: GMC_HOME_PROMPT
+  };
+  return mapping[cat] || GMC_DEFAULT_PROMPT;
 }
