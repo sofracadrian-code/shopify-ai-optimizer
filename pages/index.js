@@ -715,4 +715,14 @@ STRICT MANDATE FOR [BODY] SEGMENT:
             </div>
 
             {/* ACTION FOOTER */}
-            <div style={{ marginTop: '25px', borderTop: '1px solid #
+            <div style={{ marginTop: '25px', borderTop: '1px solid #e5e7eb', paddingTop: '15px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button onClick={() => setEditingProduct(null)} style={{ backgroundColor: '#f3f4f6', color: '#374151', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>Anulează</button>
+              <button onClick={saveProductEdits} style={{ backgroundColor: '#16a34a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>Salvează Modificările</button>
+            </div>
+
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
