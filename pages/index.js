@@ -7,7 +7,6 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [gmcLoadingIndex, setGmcLoadingIndex] = useState(null);
   
-  // State-uri pentru gestionarea produsului selectat în Pop-up
   const [selectedProductIndex, setSelectedProductIndex] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
 
@@ -18,7 +17,7 @@ export default function Home() {
     if (matchStandard && matchStandard[1].trim()) return matchStandard[1].trim();
 
     const alternativeCleanTag = tag.replace('GMC_', '');
-    const regexAlt = new RegExp(`(?:\\*\\*|\\b)(?:${tag}|${alternativeCleanTag})(?:\\*\\*)?:?\\s*([\\s\\S]*?)(?=(?:\\*\\*|\\b)(?:TITLE|BODY|SEOTITLE|SEODESC|TAGS|ALT|GMC_TITLE|GMC_DESCRIPTION|PRODUCT_TYPE|GOOGLE_CATEGORY|BRAND|COLOR|SIZE|MATERIAL)\\b|$)`, 'i');
+    const regexAlt = new RegExp(`(?:\\*\\*|\\b)(?:${tag}|${alternativeCleanTag})(?:\\*\\*)?:?\\s*([\\s\\S]*?)(?=(?:\\*\\*|\\b)(?:TITLE|BODY|SEOTITLE|SEODESC|TAGS|ALT1|ALT2|ALT3|ALT4|ALT5|GMC_TITLE|GMC_DESCRIPTION|PRODUCT_TYPE|GOOGLE_CATEGORY|BRAND|COLOR|SIZE|MATERIAL)\\b|$)`, 'i');
     const matchAlt = text.match(regexAlt);
     if (matchAlt && matchAlt[1].trim()) {
       return matchAlt[1].replace(/^[:\s\-*]+|[:\s\-*]+$/g, '').trim();
@@ -50,7 +49,12 @@ export default function Home() {
           seoTitle: '',
           seoDescription: '',
           tags: '',
-          imageAltText: '',
+          // Inițializăm cele 5 câmpuri pentru imagini
+          altText1: '',
+          altText2: '',
+          altText3: '',
+          altText4: '',
+          altText5: '',
           gmcTitle: '',
           gmcDescription: '',
           productType: '',
@@ -91,6 +95,9 @@ export default function Home() {
 
         const activeShopifyPrompt = localStorage.getItem(`shopify_${category}`) || localStorage.getItem('shopify_default');
 
+        // Adăugăm o regulă dinamică direct în apel pentru a forța generarea celor 5 ALT-uri dacă promptul din setări e mai vechi
+        const enhancedPrompt = `${activeShopifyPrompt}\n\nIMPORTANT: Pentru imaginile produsului, generează obligatoriu 5 variante de Alt Text unice și descriptive în limba germană (relevante pentru produs), folosind etichetele stricte: [ALT1], [ALT2], [ALT3], [ALT4] și [ALT5].`;
+
         const response = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -99,7 +106,7 @@ export default function Home() {
             description: updatedProducts[i].Body || updatedProducts[i].description,
             type: updatedProducts[i].Type || updatedProducts[i].type,
             tags: updatedProducts[i].Tags || updatedProducts[i].tags,
-            shopifyPrompt: activeShopifyPrompt,
+            shopifyPrompt: enhancedPrompt,
             runShopifyOnly: true
           }),
         });
@@ -113,7 +120,13 @@ export default function Home() {
           updatedProducts[i].seoTitle = extractSegment(shopifyText, 'SEOTITLE');
           updatedProducts[i].seoDescription = extractSegment(shopifyText, 'SEODESC');
           updatedProducts[i].tags = extractSegment(shopifyText, 'TAGS');
-          updatedProducts[i].imageAltText = extractSegment(shopifyText, 'ALT');
+          
+          // Extragerea celor 5 segmente distincte de Alt Text
+          updatedProducts[i].altText1 = extractSegment(shopifyText, 'ALT1') || extractSegment(shopifyText, 'ALT');
+          updatedProducts[i].altText2 = extractSegment(shopifyText, 'ALT2');
+          updatedProducts[i].altText3 = extractSegment(shopifyText, 'ALT3');
+          updatedProducts[i].altText4 = extractSegment(shopifyText, 'ALT4');
+          updatedProducts[i].altText5 = extractSegment(shopifyText, 'ALT5');
 
           if (!updatedProducts[i].optimizedTitle && shopifyText) {
             updatedProducts[i].optimizedTitle = shopifyText.substring(0, 60) + '...';
@@ -131,7 +144,7 @@ export default function Home() {
   };
 
   const generateGmcForSingleProduct = async (index, e) => {
-    if (e) e.stopPropagation(); // Oprește deschiderea pop-up-ului când se apasă pe buton
+    if (e) e.stopPropagation();
     setGmcLoadingIndex(index);
     const updatedProducts = [...products];
     updatedProducts[index].gmcStatus = 'Generare GMC...';
@@ -182,13 +195,11 @@ export default function Home() {
     setGmcLoadingIndex(null);
   };
 
-  // Deschiderea Pop-up-ului de editare
   const openEditModal = (index) => {
     setSelectedProductIndex(index);
     setEditingProduct({ ...products[index] });
   };
 
-  // Salvarea modificărilor făcute manual de tine
   const saveProductEdits = () => {
     const updatedProducts = [...products];
     updatedProducts[selectedProductIndex] = editingProduct;
@@ -198,7 +209,23 @@ export default function Home() {
   };
 
   const downloadCSV = () => {
-    const csv = Papa.unparse(products);
+    // Înainte de descărcare, mapăm câmpurile Alt Text într-o singură coloană unitară dacă structura Shopify o cere,
+    // sau le lăsăm ca coloane adiționale în funcție de maparea ta. Aici le exportăm explicit.
+    const csvData = products.map(p => {
+      const { altText1, altText2, altText3, altText4, altText5, ...rest } = p;
+      return {
+        ...rest,
+        "Image Alt Text 1": altText1,
+        "Image Alt Text 2": altText2,
+        "Image Alt Text 3": altText3,
+        "Image Alt Text 4": altText4,
+        "Image Alt Text 5": altText5,
+        // Alipire utilă în caz de nevoie:
+        "All Image Alt Texts (Combined)": [altText1, altText2, altText3, altText4, altText5].filter(Boolean).join(', ')
+      };
+    });
+
+    const csv = Papa.unparse(csvData);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -291,50 +318,57 @@ export default function Home() {
         </div>
       )}
 
-      {/* INTERFAȚA POP-UP (MODALĂ) PENTRU VIZUALIZARE ȘI EDITARE COMPLETĂ */}
       {editingProduct && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '20px' }}>
-          <div style={{ backgroundColor: '#fff', borderRadius: '8px', width: '100%', maxWidth: '850px', maxHeight: '90vh', overflowY: 'auto', padding: '30px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+          <div style={{ backgroundColor: '#fff', borderRadius: '8px', width: '100%', maxWidth: '900px', maxHeight: '95vh', overflowY: 'auto', padding: '30px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px' }}>
               <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#111827' }}>Editează Datele Generate de AI</h2>
               <button onClick={() => setEditingProduct(null)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#9ca3af' }}>&times;</button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px' }}>
               
               {/* COLOANA STÂNGA: DATE SHOPIFY */}
               <div>
                 <h3 style={{ color: '#16a34a', borderBottom: '2px solid #16a34a', paddingBottom: '4px', marginBottom: '12px', fontSize: '14px', fontWeight: 'bold' }}>DATE SHOPIFY & SEO</h3>
                 
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>Titlu Optimizat Magazin</label>
-                  <input type="text" value={editingProduct.optimizedTitle} onChange={(e) => setEditingProduct({...editingProduct, optimizedTitle: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '2px', color: '#374151' }}>Titlu Optimizat Magazin</label>
+                  <input type="text" value={editingProduct.optimizedTitle} onChange={(e) => setEditingProduct({...editingProduct, optimizedTitle: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                 </div>
 
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>Titlu SEO (Google Search)</label>
-                  <input type="text" value={editingProduct.seoTitle} onChange={(e) => setEditingProduct({...editingProduct, seoTitle: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '2px', color: '#374151' }}>Titlu SEO (Google Search)</label>
+                  <input type="text" value={editingProduct.seoTitle} onChange={(e) => setEditingProduct({...editingProduct, seoTitle: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                 </div>
 
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>Meta Descriere SEO</label>
-                  <textarea rows="3" value={editingProduct.seoDescription} onChange={(e) => setEditingProduct({...editingProduct, seoDescription: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db', fontFamily: 'sans-serif' }}></textarea>
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '2px', color: '#374151' }}>Meta Descriere SEO</label>
+                  <textarea rows="2" value={editingProduct.seoDescription} onChange={(e) => setEditingProduct({...editingProduct, seoDescription: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db', fontFamily: 'sans-serif', fontSize: '13px' }}></textarea>
                 </div>
 
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>Descriere HTML Produs (Body HTML)</label>
-                  <textarea rows="6" value={editingProduct.bodyHtml} onChange={(e) => setEditingProduct({...editingProduct, bodyHtml: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db', fontFamily: 'monospace', fontSize: '12px' }}></textarea>
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '2px', color: '#374151' }}>Descriere HTML Produs (Body HTML)</label>
+                  <textarea rows="4" value={editingProduct.bodyHtml} onChange={(e) => setEditingProduct({...editingProduct, bodyHtml: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db', fontFamily: 'monospace', fontSize: '12px' }}></textarea>
                 </div>
 
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>Taguri (separate prin virgulă)</label>
-                  <input type="text" value={editingProduct.tags} onChange={(e) => setEditingProduct({...editingProduct, tags: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                <div style={{ marginBottom: '15px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '2px', color: '#374151' }}>Taguri (separate prin virgulă)</label>
+                  <input type="text" value={editingProduct.tags} onChange={(e) => setEditingProduct({...editingProduct, tags: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                 </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>Alt Text Imagine</label>
-                  <input type="text" value={editingProduct.imageAltText} onChange={(e) => setEditingProduct({...editingProduct, imageAltText: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                {/* SECȚIUNEA NOUĂ PENTRU CELE 5 STRATURI DE ALT TEXT */}
+                <div style={{ backgroundColor: '#f0fdf4', padding: '12px', borderRadius: '6px', border: '1px solid #bbf7d0' }}>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: '12px', color: '#15803d', fontWeight: 'bold' }}>Alt Text Imagini Galerie (Maxim 5)</h4>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <input type="text" placeholder="Alt Text Imaginea 1 (Principală)" value={editingProduct.altText1} onChange={(e) => setEditingProduct({...editingProduct, altText1: e.target.value})} style={{ width: '100%', padding: '5px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                    <input type="text" placeholder="Alt Text Imaginea 2" value={editingProduct.altText2} onChange={(e) => setEditingProduct({...editingProduct, altText2: e.target.value})} style={{ width: '100%', padding: '5px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                    <input type="text" placeholder="Alt Text Imaginea 3" value={editingProduct.altText3} onChange={(e) => setEditingProduct({...editingProduct, altText3: e.target.value})} style={{ width: '100%', padding: '5px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                    <input type="text" placeholder="Alt Text Imaginea 4" value={editingProduct.altText4} onChange={(e) => setEditingProduct({...editingProduct, altText4: e.target.value})} style={{ width: '100%', padding: '5px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                    <input type="text" placeholder="Alt Text Imaginea 5" value={editingProduct.altText5} onChange={(e) => setEditingProduct({...editingProduct, altText5: e.target.value})} style={{ width: '100%', padding: '5px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                  </div>
                 </div>
               </div>
 
@@ -342,53 +376,53 @@ export default function Home() {
               <div>
                 <h3 style={{ color: '#ea580c', borderBottom: '2px solid #ea580c', paddingBottom: '4px', marginBottom: '12px', fontSize: '14px', fontWeight: 'bold' }}>DATE GOOGLE MERCHANT CENTER (GMC)</h3>
 
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>Titlu Factual GMC</label>
-                  <input type="text" value={editingProduct.gmcTitle} onChange={(e) => setEditingProduct({...editingProduct, gmcTitle: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '2px', color: '#374151' }}>Titlu Factual GMC</label>
+                  <input type="text" value={editingProduct.gmcTitle} onChange={(e) => setEditingProduct({...editingProduct, gmcTitle: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                 </div>
 
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>Descriere Factuală GMC</label>
-                  <textarea rows="3" value={editingProduct.gmcDescription} onChange={(e) => setEditingProduct({...editingProduct, gmcDescription: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db', fontFamily: 'sans-serif' }}></textarea>
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '2px', color: '#374151' }}>Descriere Factuală GMC</label>
+                  <textarea rows="3" value={editingProduct.gmcDescription} onChange={(e) => setEditingProduct({...editingProduct, gmcDescription: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db', fontFamily: 'sans-serif', fontSize: '13px' }}></textarea>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>Tip Produs</label>
-                    <input type="text" value={editingProduct.productType} onChange={(e) => setEditingProduct({...editingProduct, productType: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '2px', color: '#374151' }}>Tip Produs</label>
+                    <input type="text" value={editingProduct.productType} onChange={(e) => setEditingProduct({...editingProduct, productType: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>Categorie Google</label>
-                    <input type="text" value={editingProduct.googleCategory} onChange={(e) => setEditingProduct({...editingProduct, googleCategory: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '2px', color: '#374151' }}>Categorie Google</label>
+                    <input type="text" value={editingProduct.googleCategory} onChange={(e) => setEditingProduct({...editingProduct, googleCategory: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>Brand</label>
-                    <input type="text" value={editingProduct.brand} onChange={(e) => setEditingProduct({...editingProduct, brand: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '2px', color: '#374151' }}>Brand</label>
+                    <input type="text" value={editingProduct.brand} onChange={(e) => setEditingProduct({...editingProduct, brand: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>Culoare</label>
-                    <input type="text" value={editingProduct.color} onChange={(e) => setEditingProduct({...editingProduct, color: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '2px', color: '#374151' }}>Culoare</label>
+                    <input type="text" value={editingProduct.color} onChange={(e) => setEditingProduct({...editingProduct, color: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                   </div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>Mărime / Dimensiune</label>
-                    <input type="text" value={editingProduct.size} onChange={(e) => setEditingProduct({...editingProduct, size: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '2px', color: '#374151' }}>Mărime / Dimensiune</label>
+                    <input type="text" value={editingProduct.size} onChange={(e) => setEditingProduct({...editingProduct, size: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>Material</label>
-                    <input type="text" value={editingProduct.material} onChange={(e) => setEditingProduct({...editingProduct, material: e.target.value})} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '2px', color: '#374151' }}>Material</label>
+                    <input type="text" value={editingProduct.material} onChange={(e) => setEditingProduct({...editingProduct, material: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                   </div>
                 </div>
               </div>
 
             </div>
 
-            <div style={{ marginTop: '30px', pt: '15px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+            <div style={{ marginTop: '25px', pt: '15px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <button onClick={() => setEditingProduct(null)} style={{ backgroundColor: '#f3f4f6', color: '#374151', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>
                 Anulează
               </button>
