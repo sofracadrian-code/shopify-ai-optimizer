@@ -12,16 +12,13 @@ export default function Home() {
   const [selectedProductIndex, setSelectedProductIndex] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
 
-  // Funcție de extragere îmbunătățită pentru a prinde descrierea indiferent de mici variații de etichete
   const extractSegment = (text, tag) => {
     if (!text) return '';
     
-    // Încercare standard cu eticheta cerută (ex: [BODY]...[/BODY])
     const regexStandard = new RegExp(`\\[${tag}\\]([\\s\\S]*?)\\[\\/${tag}\\]`, 'i');
     const matchStandard = text.match(regexStandard);
     if (matchStandard && matchStandard[1].trim()) return matchStandard[1].trim();
 
-    // Toleranță specială pentru corpul descrierii (dacă modelul scrie DESCRIPTION, SCHRITT sau text liber)
     if (tag === 'BODY') {
       const extraBodyRegex = /\[(?:BODY|DESCRIPTION|PRODUCT_DESCRIPTION|BESCHREIBUNG)\]([\s\S]*?)\[\/(?:BODY|DESCRIPTION|PRODUCT_DESCRIPTION|BESCHREIBUNG)\]/i;
       const matchExtra = text.match(extraBodyRegex);
@@ -54,7 +51,7 @@ export default function Home() {
         const onlyMainProducts = results.data.filter(p => p && p.Title && p.Title.trim() !== '');
         const mapped = onlyMainProducts.map(p => {
           const src = p["Image Src"] || p["image_src"] || p["Image URL"] || "";
-          const imagesArray = src ? [src.trim()] : []; // Lăsăm logica simplă de imagine pe mai târziu, așa cum ai cerut
+          const imagesArray = src ? [src.trim()] : [];
 
           return {
             ...p,
@@ -107,6 +104,7 @@ export default function Home() {
     }
   };
 
+  // REPARARE BUCĂ GENERALĂ: Întărim instrucțiunile pentru corp descriere (BODY)
   const startShopifyOptimization = async () => {
     if (selectedProductIds.length === 0) return;
     setLoading(true);
@@ -131,7 +129,16 @@ export default function Home() {
         updatedProducts[i].detectedCategory = category.toUpperCase();
 
         const activeShopifyPrompt = localStorage.getItem(`shopify_${category}`) || localStorage.getItem('shopify_default');
-        const enhancedPrompt = `${activeShopifyPrompt}\n\nIMPORTANT: Pentru imaginile produsului, generează obligatoriu 5 variante de Alt Text unice și descriptive în limba germană (relevante pentru produs), folosind etichetele stricte: [ALT1], [ALT2], [ALT3], [ALT4] și [ALT5].`;
+        
+        // Aici forțăm modelul să nu ignore blocul [BODY] la prima strigare
+        const enhancedPrompt = `
+          ${activeShopifyPrompt}
+          
+          CRITICAL REQUIREMENT:
+          1. You MUST generate the main product description and wrap it inside the exact tags: [BODY]your_content_here[/BODY]. Do not leave this empty.
+          2. The content inside [BODY] must be detailed, written in GERMAN, and optimized for sales.
+          3. Generate 5 unique Alt Texts in German wrapped in [ALT1] to [ALT5].
+        `;
 
         const response = await fetch('/api/generate', {
           method: 'POST',
@@ -277,18 +284,21 @@ export default function Home() {
     setRegenLoadingField(null);
   };
 
-  // DESCHIDERE POP-UP: Încărcăm starea curentă exact din indexul din tabel
   const openEditModal = (index) => {
     setSelectedProductIndex(index);
     setEditingProduct({ ...products[index] });
   };
 
-  // SALVARE: Actualizăm array-ul principal corect folosind indexul salvat
+  // Verificăm riguros starea locală a modalului la salvare
   const saveProductEdits = () => {
-    if (selectedProductIndex === null) return;
-    const updatedProducts = [...products];
-    updatedProducts[selectedProductIndex] = { ...editingProduct }; // Salvăm copia modificată complet înapoi în tabel
-    setProducts(updatedProducts);
+    if (selectedProductIndex === null || !editingProduct) return;
+    
+    setProducts(prevProducts => {
+      const copy = [...prevProducts];
+      copy[selectedProductIndex] = { ...editingProduct };
+      return copy;
+    });
+
     setSelectedProductIndex(null);
     setEditingProduct(null);
   };
@@ -495,7 +505,7 @@ export default function Home() {
                       {regenLoadingField === 'optimizedTitle' ? '🔄 Rescriere...' : '🔄 Regenerează'}
                     </button>
                   </div>
-                  <input type="text" value={editingProduct.optimizedTitle} onChange={(e) => setEditingProduct({...editingProduct, optimizedTitle: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                  <input type="text" value={editingProduct.optimizedTitle || ''} onChange={(e) => setEditingProduct({...editingProduct, optimizedTitle: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                 </div>
                 <div style={{ marginBottom: '10px' }}>
                   <div style={labelStyle}>
@@ -504,7 +514,7 @@ export default function Home() {
                       {regenLoadingField === 'seoTitle' ? '🔄 Rescriere...' : '🔄 Regenerează'}
                     </button>
                   </div>
-                  <input type="text" value={editingProduct.seoTitle} onChange={(e) => setEditingProduct({...editingProduct, seoTitle: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                  <input type="text" value={editingProduct.seoTitle || ''} onChange={(e) => setEditingProduct({...editingProduct, seoTitle: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                 </div>
                 <div style={{ marginBottom: '10px' }}>
                   <div style={labelStyle}>
@@ -513,7 +523,7 @@ export default function Home() {
                       {regenLoadingField === 'seoDescription' ? '🔄 Rescriere...' : '🔄 Regenerează'}
                     </button>
                   </div>
-                  <textarea rows="2" value={editingProduct.seoDescription} onChange={(e) => setEditingProduct({...editingProduct, seoDescription: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '13px' }}></textarea>
+                  <textarea rows="2" value={editingProduct.seoDescription || ''} onChange={(e) => setEditingProduct({...editingProduct, seoDescription: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '13px' }}></textarea>
                 </div>
                 <div style={{ marginBottom: '10px' }}>
                   <div style={labelStyle}>
@@ -522,7 +532,7 @@ export default function Home() {
                       {regenLoadingField === 'bodyHtml' ? '🔄 Rescriere...' : '🔄 Regenerează'}
                     </button>
                   </div>
-                  <textarea rows="4" value={editingProduct.bodyHtml} onChange={(e) => setEditingProduct({...editingProduct, bodyHtml: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db', fontFamily: 'monospace', fontSize: '12px' }}></textarea>
+                  <textarea rows="4" value={editingProduct.bodyHtml || ''} onChange={(e) => setEditingProduct({...editingProduct, bodyHtml: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db', fontFamily: 'monospace', fontSize: '12px' }}></textarea>
                 </div>
                 <div style={{ marginBottom: '15px' }}>
                   <div style={labelStyle}>
@@ -531,16 +541,16 @@ export default function Home() {
                       {regenLoadingField === 'tags' ? '🔄 Rescriere...' : '🔄 Regenerează'}
                     </button>
                   </div>
-                  <input type="text" value={editingProduct.tags} onChange={(e) => setEditingProduct({...editingProduct, tags: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                  <input type="text" value={editingProduct.tags || ''} onChange={(e) => setEditingProduct({...editingProduct, tags: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                 </div>
                 <div style={{ backgroundColor: '#f0fdf4', padding: '12px', borderRadius: '6px', border: '1px solid #bbf7d0' }}>
                   <h4 style={{ margin: '0 0 8px 0', fontSize: '12px', color: '#15803d', fontWeight: 'bold' }}>Alt Text Imagini Galerie</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <input type="text" placeholder="Alt Text Imaginea 1" value={editingProduct.altText1} onChange={(e) => setEditingProduct({...editingProduct, altText1: e.target.value})} style={{ width: '100%', padding: '5px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                    <input type="text" placeholder="Alt Text Imaginea 2" value={editingProduct.altText2} onChange={(e) => setEditingProduct({...editingProduct, altText2: e.target.value})} style={{ width: '100%', padding: '5px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                    <input type="text" placeholder="Alt Text Imaginea 3" value={editingProduct.altText3} onChange={(e) => setEditingProduct({...editingProduct, altText3: e.target.value})} style={{ width: '100%', padding: '5px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                    <input type="text" placeholder="Alt Text Imaginea 4" value={editingProduct.altText4} onChange={(e) => setEditingProduct({...editingProduct, altText4: e.target.value})} style={{ width: '100%', padding: '5px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
-                    <input type="text" placeholder="Alt Text Imaginea 5" value={editingProduct.altText5} onChange={(e) => setEditingProduct({...editingProduct, altText5: e.target.value})} style={{ width: '100%', padding: '5px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                    <input type="text" placeholder="Alt Text Imaginea 1" value={editingProduct.altText1 || ''} onChange={(e) => setEditingProduct({...editingProduct, altText1: e.target.value})} style={{ width: '100%', padding: '5px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                    <input type="text" placeholder="Alt Text Imaginea 2" value={editingProduct.altText2 || ''} onChange={(e) => setEditingProduct({...editingProduct, altText2: e.target.value})} style={{ width: '100%', padding: '5px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                    <input type="text" placeholder="Alt Text Imaginea 3" value={editingProduct.altText3 || ''} onChange={(e) => setEditingProduct({...editingProduct, altText3: e.target.value})} style={{ width: '100%', padding: '5px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                    <input type="text" placeholder="Alt Text Imaginea 4" value={editingProduct.altText4 || ''} onChange={(e) => setEditingProduct({...editingProduct, altText4: e.target.value})} style={{ width: '100%', padding: '5px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
+                    <input type="text" placeholder="Alt Text Imaginea 5" value={editingProduct.altText5 || ''} onChange={(e) => setEditingProduct({...editingProduct, altText5: e.target.value})} style={{ width: '100%', padding: '5px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
                   </div>
                 </div>
               </div>
@@ -555,7 +565,7 @@ export default function Home() {
                       {regenLoadingField === 'gmcTitle' ? '🔄 Rescriere...' : '🔄 Regenerează'}
                     </button>
                   </div>
-                  <input type="text" value={editingProduct.gmcTitle} onChange={(e) => setEditingProduct({...editingProduct, gmcTitle: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                  <input type="text" value={editingProduct.gmcTitle || ''} onChange={(e) => setEditingProduct({...editingProduct, gmcTitle: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                 </div>
                 <div style={{ marginBottom: '10px' }}>
                   <div style={labelStyle}>
@@ -564,42 +574,41 @@ export default function Home() {
                       {regenLoadingField === 'gmcDescription' ? '🔄 Rescriere...' : '🔄 Regenerează'}
                     </button>
                   </div>
-                  <textarea rows="3" value={editingProduct.gmcDescription} onChange={(e) => setEditingProduct({...editingProduct, gmcDescription: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '13px' }}></textarea>
+                  <textarea rows="3" value={editingProduct.gmcDescription || ''} onChange={(e) => setEditingProduct({...editingProduct, gmcDescription: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '13px' }}></textarea>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                   <div>
                     <div style={labelStyle}><span>Tip Produs</span><button onClick={() => regenerateSingleField('productType', 'PRODUCT_TYPE', true)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'productType')}>🔄</button></div>
-                    <input type="text" value={editingProduct.productType} onChange={(e) => setEditingProduct({...editingProduct, productType: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                    <input type="text" value={editingProduct.productType || ''} onChange={(e) => setEditingProduct({...editingProduct, productType: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                   </div>
                   <div>
                     <div style={labelStyle}><span>Categorie Google</span><button onClick={() => regenerateSingleField('googleCategory', 'GOOGLE_CATEGORY', true)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'googleCategory')}>🔄</button></div>
-                    <input type="text" value={editingProduct.googleCategory} onChange={(e) => setEditingProduct({...editingProduct, googleCategory: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                    <input type="text" value={editingProduct.googleCategory || ''} onChange={(e) => setEditingProduct({...editingProduct, googleCategory: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                   <div>
                     <div style={labelStyle}><span>Brand</span><button onClick={() => regenerateSingleField('brand', 'BRAND', true)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'brand')}>🔄</button></div>
-                    <input type="text" value={editingProduct.brand} onChange={(e) => setEditingProduct({...editingProduct, brand: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                    <input type="text" value={editingProduct.brand || ''} onChange={(e) => setEditingProduct({...editingProduct, brand: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                   </div>
                   <div>
                     <div style={labelStyle}><span>Culoare</span><button onClick={() => regenerateSingleField('color', 'COLOR', true)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'color')}>🔄</button></div>
-                    <input type="text" value={editingProduct.color} onChange={(e) => setEditingProduct({...editingProduct, color: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                    <input type="text" value={editingProduct.color || ''} onChange={(e) => setEditingProduct({...editingProduct, color: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <div>
                     <div style={labelStyle}><span>Mărime</span><button onClick={() => regenerateSingleField('size', 'SIZE', true)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'size')}>🔄</button></div>
-                    <input type="text" value={editingProduct.size} onChange={(e) => setEditingProduct({...editingProduct, size: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                    <input type="text" value={editingProduct.size || ''} onChange={(e) => setEditingProduct({...editingProduct, size: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                   </div>
                   <div>
                     <div style={labelStyle}><span>Material</span><button onClick={() => regenerateSingleField('material', 'MATERIAL', true)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'material')}>🔄</button></div>
-                    <input type="text" value={editingProduct.material} onChange={(e) => setEditingProduct({...editingProduct, material: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                    <input type="text" value={editingProduct.material || ''} onChange={(e) => setEditingProduct({...editingProduct, material: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* MANAGEMENT IMAGINI (Ascuns vizual la cerere dar păstrat funcțional în cod) */}
             <div style={{ marginTop: '25px', backgroundColor: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
               <h3 style={{ margin: 0, fontSize: '14px', color: '#64748b', fontStyle: 'italic' }}>Secțiune imagini (Sărită momentan conform instrucțiunilor)</h3>
             </div>
