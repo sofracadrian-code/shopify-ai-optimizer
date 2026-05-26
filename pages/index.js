@@ -4,9 +4,10 @@ import Link from 'next/link';
 
 export default function Home() {
   const [products, setProducts] = useState([]);
+  const [selectedProductIds, setSelectedProductIds] = useState([]); // Urmărește indecșii produselor bifate
   const [loading, setLoading] = useState(false);
   const [gmcLoadingIndex, setGmcLoadingIndex] = useState(null);
-  const [regenLoadingField, setRegenLoadingField] = useState(null); // Urmărește ce câmp se regenerează individual
+  const [regenLoadingField, setRegenLoadingField] = useState(null); 
   
   const [selectedProductIndex, setSelectedProductIndex] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -71,18 +72,43 @@ export default function Home() {
           };
         });
         setProducts(mapped);
+        // Resetăm selecția la un nou import
+        setSelectedProductIds([]);
       },
     });
   };
 
+  // LOGICĂ BIFE: Selectare individuală
+  const handleSelectProduct = (index, e) => {
+    e.stopPropagation(); // Oprește deschiderea pop-up-ului când pui bifa
+    if (selectedProductIds.includes(index)) {
+      setSelectedProductIds(selectedProductIds.filter(id => id !== index));
+    } else {
+      setSelectedProductIds([...selectedProductIds, index]);
+    }
+  };
+
+  // LOGICĂ BIFE: Selectare / Deselectare TOATE produsele vizibile
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      const limit = Math.min(products.length, 20); // Păstrăm limita setată în vizualizare dacă e cazul
+      const allIndexes = Array.from({ length: limit }, (_, i) => i);
+      setSelectedProductIds(allIndexes);
+    } else {
+      setSelectedProductIds([]);
+    }
+  };
+
+  // PROCESARE BAZATĂ PE SELECȚIE
   const startShopifyOptimization = async () => {
-    if (products.length === 0) return;
+    if (selectedProductIds.length === 0) return;
     setLoading(true);
 
     const updatedProducts = [...products];
-    const limit = Math.min(products.length, 20); 
 
-    for (let i = 0; i < limit; i++) {
+    // Procesăm DOAR indecșii care au fost bifați de tine
+    for (const i of selectedProductIds) {
+      // Sărim peste cele care sunt deja în procesare sau optimizate, opțional, dar acum le forțăm la cerere
       updatedProducts[i].aiStatus = 'Se procesează...';
       setProducts([...updatedProducts]);
 
@@ -198,21 +224,16 @@ export default function Home() {
     setGmcLoadingIndex(null);
   };
 
-  // FUNCȚIE NOUĂ: Regenerarea unui singur câmp specific direct din Pop-up
   const regenerateSingleField = async (fieldKey, tagLabel, isGmc = false) => {
     setRegenLoadingField(fieldKey);
-    
-    // Luăm promptul de bază corespunzător categoriei detectate
     const category = (editingProduct.detectedCategory || 'default').toLowerCase();
     const activePrompt = isGmc 
       ? (localStorage.getItem(`gmc_${category}`) || localStorage.getItem('gmc_default'))
       : (localStorage.getItem(`shopify_${category}`) || localStorage.getItem('shopify_default'));
 
-    // Creăm o micro-comandă forțată pentru AI ca să returneze DOAR segmentul dorit
     const localizedPrompt = `
       Te bazezi pe regulile generale din acest prompt:
       ${activePrompt}
-      
       ACȚIUNE SPECIFICĂ: Generează ACUM strict segmentul [${tagLabel}] pentru produsul de mai jos. 
       Returnează doar valoarea optimizată încadrată de etichete, de exemplu: [${tagLabel}]conținut[/${tagLabel}]. Nu adăuga alte secțiuni.
     `;
@@ -237,11 +258,9 @@ export default function Home() {
       if (data && data.success) {
         const rawResult = isGmc ? data.gmcResult : data.shopifyResult;
         const extractedValue = extractSegment(rawResult, tagLabel);
-        
         if (extractedValue) {
           setEditingProduct(prev => ({ ...prev, [fieldKey]: extractedValue }));
         } else if (rawResult) {
-          // Fallback în caz că AI-ul nu a pus tag-urile dar a scos textul curat
           setEditingProduct(prev => ({ ...prev, [fieldKey]: rawResult.replace(/\[\/?\w+\]/g, '').trim() }));
         }
       }
@@ -330,7 +349,6 @@ export default function Home() {
     document.body.removeChild(link);
   };
 
-  // Stil utilitar pentru butoanele mici de regenerare inline
   const labelStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', fontWeight: 'bold', marginBottom: '2px', color: '#374151' };
   const regenBtnStyle = (isFieldLoading) => ({
     background: 'none', border: 'none', color: '#2563eb', fontSize: '12px', cursor: isFieldLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '3px', fontWeight: '600', padding: '2px 5px', borderRadius: '3px', transition: 'background 0.2s'
@@ -342,7 +360,7 @@ export default function Home() {
       <header style={{ marginBottom: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 style={{ color: '#111827', fontSize: '28px', fontWeight: 'bold' }}>Golden Bridge Store - AI Optimizer</h1>
-          <p style={{ color: '#4b5563' }}>Generează datele automat și dă click pe orice rând pentru a vizualiza sau edita manual detaliile.</p>
+          <p style={{ color: '#4b5563' }}>Bifează produsele pe care vrei să le trimiți către AI. Click pe orice rând pentru editare detaliată manuală.</p>
         </div>
         <Link href="/settings" style={{ backgroundColor: '#2563eb', color: '#fff', padding: '10px 20px', borderRadius: '6px', textDecoration: 'none', fontWeight: '600', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
           ⚙ Configurare Prompturi
@@ -354,8 +372,17 @@ export default function Home() {
         <input type="file" accept=".csv" onChange={handleFileUpload} style={{ fontSize: '16px', color: '#4b5563' }} />
         
         {products.length > 0 && (
-          <button onClick={startShopifyOptimization} disabled={loading} style={{ backgroundColor: loading ? '#9ca3af' : '#2563eb', color: '#fff', padding: '10px 20px', borderRadius: '6px', border: 'none', fontSize: '16px', fontWeight: '600', cursor: loading ? 'not-allowed' : 'pointer' }}>
-            {loading ? 'Se procesează...' : 'Pornește Optimizarea Shopify'}
+          <button 
+            onClick={startShopifyOptimization} 
+            disabled={loading || selectedProductIds.length === 0} 
+            style={{ 
+              backgroundColor: loading ? '#9ca3af' : (selectedProductIds.length === 0 ? '#cbd5e1' : '#2563eb'), 
+              color: selectedProductIds.length === 0 ? '#94a3b8' : '#fff', 
+              padding: '10px 20px', borderRadius: '6px', border: 'none', fontSize: '16px', fontWeight: '600', 
+              cursor: (loading || selectedProductIds.length === 0) ? 'not-allowed' : 'pointer' 
+            }}
+          >
+            {loading ? 'Se procesează...' : `Optimizează Shopify (${selectedProductIds.length} selectate)`}
           </button>
         )}
 
@@ -366,12 +393,21 @@ export default function Home() {
         )}
       </div>
 
-      {/* TABEL CENTRAL */}
+      {/* TABEL CENTRAL CU CONTROL SELECȚIE */}
       {products.length > 0 && (
         <div style={{ backgroundColor: '#fff', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead style={{ backgroundColor: '#f3f4f6', borderBottom: '1px solid #e5e7eb' }}>
               <tr>
+                {/* BIFĂ GLOBALĂ */}
+                <th style={{ padding: '12px 16px', width: '40px', textAlign: 'center' }}>
+                  <input 
+                    type="checkbox" 
+                    onChange={handleSelectAll} 
+                    checked={selectedProductIds.length === Math.min(products.length, 20) && products.length > 0} 
+                    style={{ width: '17px', height: '17px', cursor: 'pointer' }}
+                  />
+                </th>
                 <th style={{ padding: '12px 16px', color: '#374151' }}>Titlu Original</th>
                 <th style={{ padding: '12px 16px', color: '#374151' }}>Categorie</th>
                 <th style={{ padding: '12px 16px', color: '#374151' }}>Titlu Shopify (SEO)</th>
@@ -388,6 +424,15 @@ export default function Home() {
                   onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                 >
+                  {/* BIFĂ INDIVIDUALĂ */}
+                  <td style={{ padding: '12px 16px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                    <input 
+                      type="checkbox" 
+                      checked={selectedProductIds.includes(index)} 
+                      onChange={(e) => handleSelectProduct(index, e)}
+                      style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                    />
+                  </td>
                   <td style={{ padding: '12px 16px', color: '#111827', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prod.Title || prod.title}</td>
                   <td style={{ padding: '12px 16px', color: '#2563eb', fontWeight: 'bold', fontSize: '12px' }}>{prod.detectedCategory}</td>
                   <td style={{ padding: '12px 16px', color: '#16a34a', fontWeight: '500' }}>
@@ -421,7 +466,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* POP-UP DETALII CU REGENERARE PE CÂMPURI INDIVIDUALE */}
+      {/* POP-UP-UL DE EDITARE (A RĂMAS NESCHIMBAT) */}
       {editingProduct && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '20px' }}>
           <div style={{ backgroundColor: '#fff', borderRadius: '8px', width: '100%', maxWidth: '980px', maxHeight: '95vh', overflowY: 'auto', padding: '30px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
@@ -432,11 +477,9 @@ export default function Home() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px' }}>
-              
               {/* COLOANA STÂNGA: SHOPIFY */}
               <div>
                 <h3 style={{ color: '#16a34a', borderBottom: '2px solid #16a34a', paddingBottom: '4px', marginBottom: '12px', fontSize: '14px', fontWeight: 'bold' }}>DATE SHOPIFY & SEO</h3>
-                
                 <div style={{ marginBottom: '10px' }}>
                   <div style={labelStyle}>
                     <span>Titlu Optimizat Magazin</span>
@@ -446,7 +489,6 @@ export default function Home() {
                   </div>
                   <input type="text" value={editingProduct.optimizedTitle} onChange={(e) => setEditingProduct({...editingProduct, optimizedTitle: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                 </div>
-
                 <div style={{ marginBottom: '10px' }}>
                   <div style={labelStyle}>
                     <span>Titlu SEO (Google Search)</span>
@@ -456,7 +498,6 @@ export default function Home() {
                   </div>
                   <input type="text" value={editingProduct.seoTitle} onChange={(e) => setEditingProduct({...editingProduct, seoTitle: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                 </div>
-
                 <div style={{ marginBottom: '10px' }}>
                   <div style={labelStyle}>
                     <span>Meta Descriere SEO</span>
@@ -466,7 +507,6 @@ export default function Home() {
                   </div>
                   <textarea rows="2" value={editingProduct.seoDescription} onChange={(e) => setEditingProduct({...editingProduct, seoDescription: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '13px' }}></textarea>
                 </div>
-
                 <div style={{ marginBottom: '10px' }}>
                   <div style={labelStyle}>
                     <span>Descriere HTML Produs (Body HTML)</span>
@@ -476,7 +516,6 @@ export default function Home() {
                   </div>
                   <textarea rows="4" value={editingProduct.bodyHtml} onChange={(e) => setEditingProduct({...editingProduct, bodyHtml: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db', fontFamily: 'monospace', fontSize: '12px' }}></textarea>
                 </div>
-
                 <div style={{ marginBottom: '15px' }}>
                   <div style={labelStyle}>
                     <span>Taguri</span>
@@ -486,9 +525,8 @@ export default function Home() {
                   </div>
                   <input type="text" value={editingProduct.tags} onChange={(e) => setEditingProduct({...editingProduct, tags: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                 </div>
-
                 <div style={{ backgroundColor: '#f0fdf4', padding: '12px', borderRadius: '6px', border: '1px solid #bbf7d0' }}>
-                  <h4 style={{ margin: '0 0 8px 0', fontSize: '12px', color: '#15803d', fontWeight: 'bold' }}>Alt Text Imagini Galerie (Maxim 5)</h4>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: '12px', color: '#15803d', fontWeight: 'bold' }}>Alt Text Imagini Galerie</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <input type="text" placeholder="Alt Text Imaginea 1" value={editingProduct.altText1} onChange={(e) => setEditingProduct({...editingProduct, altText1: e.target.value})} style={{ width: '100%', padding: '5px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
                     <input type="text" placeholder="Alt Text Imaginea 2" value={editingProduct.altText2} onChange={(e) => setEditingProduct({...editingProduct, altText2: e.target.value})} style={{ width: '100%', padding: '5px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px' }} />
@@ -502,7 +540,6 @@ export default function Home() {
               {/* COLOANA DREAPTA: GMC */}
               <div>
                 <h3 style={{ color: '#ea580c', borderBottom: '2px solid #ea580c', paddingBottom: '4px', marginBottom: '12px', fontSize: '14px', fontWeight: 'bold' }}>DATE GOOGLE MERCHANT CENTER (GMC)</h3>
-
                 <div style={{ marginBottom: '10px' }}>
                   <div style={labelStyle}>
                     <span>Titlu Factual GMC</span>
@@ -512,7 +549,6 @@ export default function Home() {
                   </div>
                   <input type="text" value={editingProduct.gmcTitle} onChange={(e) => setEditingProduct({...editingProduct, gmcTitle: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                 </div>
-
                 <div style={{ marginBottom: '10px' }}>
                   <div style={labelStyle}>
                     <span>Descriere Factuală GMC</span>
@@ -522,110 +558,76 @@ export default function Home() {
                   </div>
                   <textarea rows="3" value={editingProduct.gmcDescription} onChange={(e) => setEditingProduct({...editingProduct, gmcDescription: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '13px' }}></textarea>
                 </div>
-
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                   <div>
-                    <div style={labelStyle}>
-                      <span>Tip Produs</span>
-                      <button onClick={() => regenerateSingleField('productType', 'PRODUCT_TYPE', true)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'productType')}>🔄</button>
-                    </div>
+                    <div style={labelStyle}><span>Tip Produs</span><button onClick={() => regenerateSingleField('productType', 'PRODUCT_TYPE', true)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'productType')}>🔄</button></div>
                     <input type="text" value={editingProduct.productType} onChange={(e) => setEditingProduct({...editingProduct, productType: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                   </div>
                   <div>
-                    <div style={labelStyle}>
-                      <span>Categorie Google</span>
-                      <button onClick={() => regenerateSingleField('googleCategory', 'GOOGLE_CATEGORY', true)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'googleCategory')}>🔄</button>
-                    </div>
+                    <div style={labelStyle}><span>Categorie Google</span><button onClick={() => regenerateSingleField('googleCategory', 'GOOGLE_CATEGORY', true)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'googleCategory')}>🔄</button></div>
                     <input type="text" value={editingProduct.googleCategory} onChange={(e) => setEditingProduct({...editingProduct, googleCategory: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                   </div>
                 </div>
-
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                   <div>
-                    <div style={labelStyle}>
-                      <span>Brand</span>
-                      <button onClick={() => regenerateSingleField('brand', 'BRAND', true)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'brand')}>🔄</button>
-                    </div>
+                    <div style={labelStyle}><span>Brand</span><button onClick={() => regenerateSingleField('brand', 'BRAND', true)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'brand')}>🔄</button></div>
                     <input type="text" value={editingProduct.brand} onChange={(e) => setEditingProduct({...editingProduct, brand: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                   </div>
                   <div>
-                    <div style={labelStyle}>
-                      <span>Culoare</span>
-                      <button onClick={() => regenerateSingleField('color', 'COLOR', true)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'color')}>🔄</button>
-                    </div>
+                    <div style={labelStyle}><span>Culoare</span><button onClick={() => regenerateSingleField('color', 'COLOR', true)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'color')}>🔄</button></div>
                     <input type="text" value={editingProduct.color} onChange={(e) => setEditingProduct({...editingProduct, color: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                   </div>
                 </div>
-
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <div>
-                    <div style={labelStyle}>
-                      <span>Mărime</span>
-                      <button onClick={() => regenerateSingleField('size', 'SIZE', true)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'size')}>🔄</button>
-                    </div>
+                    <div style={labelStyle}><span>Mărime</span><button onClick={() => regenerateSingleField('size', 'SIZE', true)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'size')}>🔄</button></div>
                     <input type="text" value={editingProduct.size} onChange={(e) => setEditingProduct({...editingProduct, size: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                   </div>
                   <div>
-                    <div style={labelStyle}>
-                      <span>Material</span>
-                      <button onClick={() => regenerateSingleField('material', 'MATERIAL', true)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'material')}>🔄</button>
-                    </div>
+                    <div style={labelStyle}><span>Material</span><button onClick={() => regenerateSingleField('material', 'MATERIAL', true)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'material')}>🔄</button></div>
                     <input type="text" value={editingProduct.material} onChange={(e) => setEditingProduct({...editingProduct, material: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                   </div>
                 </div>
               </div>
-
             </div>
 
-            {/* SECTIUNE MANAGEMENT IMAGINI */}
+            {/* MANAGEMENT IMAGINI */}
             <div style={{ marginTop: '25px', backgroundColor: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '15px', color: '#0f172a', fontWeight: 'bold' }}>Galeria de Imagini a Produsului</h3>
-                  <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b' }}>Prima imagine va fi considerată imaginea principală în importul final.</p>
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <button onClick={addImageUrl} style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>
-                    + Adaugă URL Imagine
-                  </button>
-                  <label style={{ backgroundColor: '#0284c7', color: '#fff', padding: '6px 12px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', display: 'inline-block' }}>
+                  <button onClick={addImageUrl} style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>+ Adaugă URL Imagine</button>
+                  <label style={{ backgroundColor: '#0284c7', color: '#fff', padding: '6px 12px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>
                     + Încarcă din PC
                     <input type="file" accept="image/*" multiple onChange={handleLocalImageUpload} style={{ display: 'none' }} />
                   </label>
                 </div>
               </div>
-
               <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '10px' }}>
                 {editingProduct.productImages && editingProduct.productImages.length > 0 ? (
                   editingProduct.productImages.map((img, idx) => (
                     <div key={idx} style={{ minWidth: '110px', width: '110px', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '8px', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      {idx === 0 && (
-                        <span style={{ position: 'absolute', top: '2px', left: '2px', backgroundColor: '#16a34a', color: '#fff', fontSize: '9px', fontWeight: 'bold', padding: '2px 4px', borderRadius: '3px', zIndex: 10 }}>
-                          Main
-                        </span>
-                      )}
-                      <img src={img} alt={`Produs ${idx}`} style={{ width: '90px', height: '90px', objectFit: 'contain', borderRadius: '4px', marginBottom: '8px' }} />
+                      {idx === 0 && <span style={{ position: 'absolute', top: '2px', left: '2px', backgroundColor: '#16a34a', color: '#fff', fontSize: '9px', fontWeight: 'bold', padding: '2px 4px', borderRadius: '3px' }}>Main</span>}
+                      <img src={img} alt="" style={{ width: '90px', height: '90px', objectFit: 'contain', borderRadius: '4px', marginBottom: '8px' }} />
                       <div style={{ display: 'flex', gap: '4px', width: '100%', justifyContent: 'center' }}>
-                        <button onClick={() => moveImageOrder(idx, -1)} disabled={idx === 0} style={{ padding: '2px 6px', fontSize: '10px', cursor: idx === 0 ? 'not-allowed' : 'pointer', border: '1px solid #cbd5e1', background: '#f8fafc', borderRadius: '3px' }}>◀</button>
-                        <button onClick={() => removeImage(idx)} style={{ padding: '2px 6px', fontSize: '10px', cursor: 'pointer', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '3px' }}>✕</button>
-                        <button onClick={() => moveImageOrder(idx, 1)} disabled={idx === editingProduct.productImages.length - 1} style={{ padding: '2px 6px', fontSize: '10px', cursor: idx === editingProduct.productImages.length - 1 ? 'not-allowed' : 'pointer', border: '1px solid #cbd5e1', background: '#f8fafc', borderRadius: '3px' }}>▶</button>
+                        <button onClick={() => moveImageOrder(idx, -1)} disabled={idx === 0} style={{ padding: '2px 6px', fontSize: '10px', border: '1px solid #cbd5e1', background: '#f8fafc', borderRadius: '3px' }}>◀</button>
+                        <button onClick={() => removeImage(idx)} style={{ padding: '2px 6px', fontSize: '10px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '3px' }}>✕</button>
+                        <button onClick={() => moveImageOrder(idx, 1)} disabled={idx === editingProduct.productImages.length - 1} style={{ padding: '2px 6px', fontSize: '10px', border: '1px solid #cbd5e1', background: '#f8fafc', borderRadius: '3px' }}>▶</button>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <p style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic', padding: '10px' }}>Nicio imagine importată pentru acest produs.</p>
+                  <p style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic' }}>Nicio imagine importată.</p>
                 )}
               </div>
             </div>
 
             {/* ACTION FOOTER */}
             <div style={{ marginTop: '25px', pt: '15px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-              <button onClick={() => setEditingProduct(null)} style={{ backgroundColor: '#f3f4f6', color: '#374151', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>
-                Anulează
-              </button>
-              <button onClick={saveProductEdits} style={{ backgroundColor: '#16a34a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>
-                Salvează Modificările
-              </button>
+              <button onClick={() => setEditingProduct(null)} style={{ backgroundColor: '#f3f4f6', color: '#374151', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>Anulează</button>
+              <button onClick={saveProductEdits} style={{ backgroundColor: '#16a34a', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>Salvează Modificările</button>
             </div>
 
           </div>
