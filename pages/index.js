@@ -7,11 +7,29 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [gmcLoadingIndex, setGmcLoadingIndex] = useState(null);
 
+  // O funcție mult mai robustă de extragere a textului generat de AI
   const extractSegment = (text, tag) => {
     if (!text) return '';
-    const regex = new RegExp(`\\[${tag}\\]([\\s\\S]*?)\\[\\/${tag}\\]`, 'i');
-    const match = text.match(regex);
-    return match ? match[1].trim() : '';
+    
+    // Încercarea 1: Căutare format standard [TAG]...[/TAG]
+    const regexStandard = new RegExp(`\\[${tag}\\]([\\s\\S]*?)\\[\\/${tag}\\]`, 'i');
+    const matchStandard = text.match(regexStandard);
+    if (matchStandard && matchStandard[1].trim()) return matchStandard[1].trim();
+
+    // Încercarea 2: Căutare format cu două puncte sau steluțe (ex: **TITLE:** Text sau TITLE: Text)
+    const alternativeCleanTag = tag.replace('GMC_', ''); // scoate prefixul GMC dacă e cazul pentru potriviri lejere
+    const regexAlt = new RegExp(`(?:\\*\\*|\\b)(?:${tag}|${alternativeCleanTag})(?:\\*\\*)?:?\\s*([\\s\\S]*?)(?=(?:\\*\\*|\\b)(?:TITLE|BODY|SEOTITLE|SEODESC|TAGS|ALT|GMC_TITLE|GMC_DESCRIPTION|PRODUCT_TYPE|GOOGLE_CATEGORY|BRAND|COLOR|SIZE|MATERIAL)\\b|$)`, 'i');
+    const matchAlt = text.match(regexAlt);
+    if (matchAlt && matchAlt[1].trim()) {
+      return matchAlt[1].replace(/^[:\s\-*]+|[:\s\-*]+$/g, '').trim();
+    }
+
+    // Încercarea 3: Dacă e vorba de un titlu scurt și AI-ul a întors DOAR titlul pe un singur rând
+    if ((tag === 'TITLE' || tag === 'GMC_TITLE') && text.length < 150 && !text.includes('\n')) {
+      return text.trim();
+    }
+
+    return '';
   };
 
   const handleFileUpload = (e) => {
@@ -92,12 +110,19 @@ export default function Home() {
 
         if (data && data.success) {
           const shopifyText = data.shopifyResult || '';
+          
+          // Salvăm rezultatele extrase cu noua logică flexibilă
           updatedProducts[i].optimizedTitle = extractSegment(shopifyText, 'TITLE');
           updatedProducts[i].bodyHtml = extractSegment(shopifyText, 'BODY');
           updatedProducts[i].seoTitle = extractSegment(shopifyText, 'SEOTITLE');
           updatedProducts[i].seoDescription = extractSegment(shopifyText, 'SEODESC');
           updatedProducts[i].tags = extractSegment(shopifyText, 'TAGS');
           updatedProducts[i].imageAltText = extractSegment(shopifyText, 'ALT');
+
+          // Dacă totuși nu s-a putut extrage nimic structural, punem un text de avarie ca să nu rămână gol
+          if (!updatedProducts[i].optimizedTitle && shopifyText) {
+            updatedProducts[i].optimizedTitle = shopifyText.substring(0, 60) + '...';
+          }
 
           updatedProducts[i].aiStatus = 'Optimizat';
         } else {
@@ -140,6 +165,7 @@ export default function Home() {
 
       if (data && data.success) {
         const gmcText = data.gmcResult || '';
+        
         updatedProducts[index].gmcTitle = extractSegment(gmcText, 'GMC_TITLE');
         updatedProducts[index].gmcDescription = extractSegment(gmcText, 'GMC_DESCRIPTION');
         updatedProducts[index].productType = extractSegment(gmcText, 'PRODUCT_TYPE');
@@ -148,6 +174,10 @@ export default function Home() {
         updatedProducts[index].color = extractSegment(gmcText, 'COLOR');
         updatedProducts[index].size = extractSegment(gmcText, 'SIZE');
         updatedProducts[index].material = extractSegment(gmcText, 'MATERIAL');
+
+        if (!updatedProducts[index].gmcTitle && gmcText) {
+          updatedProducts[index].gmcTitle = gmcText.substring(0, 60) + '...';
+        }
 
         updatedProducts[index].gmcStatus = 'GMC Gata';
       } else {
