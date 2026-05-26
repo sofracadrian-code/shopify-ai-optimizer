@@ -1,76 +1,59 @@
 import { OpenAI } from 'openai';
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY, // Vercel o va citi automat de unde ai salvat-o!
+  apiKey: process.env.OPENAI_API_KEY,
 });
-
-// PASUL 5: Funcția Cleaner (Curețește HTML-ul vechi și normalizează textul)
-function cleanText(text) {
-  if (!text) return '';
-  return text
-    .replace(/<\/?[^>]+(>|$)/g, "") // Elimină orice tag HTML vechi (ex: <p>, <br>)
-    .replace(/\s+/g, " ")           // Normalizază spațiile multiple într-un singur spațiu
-    .trim();                        // Taie spațiile goale de la început și sfârșit
-}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Doar cererile POST sunt permise' });
+    return res.status(405).json({ success: false, error: 'Method not allowed' });
   }
 
   try {
-    const { title, description, type, tags } = req.body;
+    const { title, description, type, tags, shopifyPrompt, gmcPrompt } = req.body;
 
-    // Pasul 5 executat pe datele primite
-    const cleanTitle = cleanText(title);
-    const cleanDescription = cleanText(description);
+    // Pregătim datele brute ale produsului pe care AI-ul le va analiza
+    const productData = `
+Titlu Original: ${title || '-'}
+Descriere Originală: ${description || '-'}
+Tip Produs: ${type || '-'}
+Taguri Originale: ${tags || '-'}
+`;
 
-    // PASUL 6 & 7: Detectare Categorie & Prompt Router cu OpenAI
-    const aiResponse = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // Rapid și ieftin, perfect pentru sortare în masă
-      response_format: { type: "json_object" }, // Îl obligăm pe OpenAI să răspundă doar în format JSON
-      messages: [
-        {
-          role: "system",
-          content: `Ești un algoritm e-commerce inteligent pentru magazinul Golden Bridge Store. 
-          Sarcina ta este să analizezi produsul primit și să îl clasifici STRÎCT într-una dintre următoarele categorii permise:
-          - electronics
-          - fashion
-          - mobility
-          - tools
-          - home
-          - generic
+    // Lansăm ambele apeluri către OpenAI în același timp (în paralel) ca să economisim timp
+    const [shopifyResponse, gmcResponse] = await Promise.all([
+      openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'user', content: `${shopifyPrompt}\n\n${productData}` }
+        ],
+        temperature: 0.3, // Temperatură mică pentru a rămâne strict pe datele oferite
+      }),
+      openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'user', content: `${gmcPrompt}\n\n${productData}` }
+        ],
+        temperature: 0.1, // Temperatură și mai mică pentru GMC (vrem acuratețe maximă, zero marketing)
+      })
+    ]);
 
-          Răspunde EXCLUSIV sub forma unui obiect JSON valid, fără alte texte în plus, exact așa:
-          {
-            "category": "nume_categorie_selectată"
-          }`
-        },
-        {
-          role: "user",
-          content: `Clasifică acest produs:
-          Titlu: ${cleanTitle}
-          Tip Produs: ${type || 'N/A'}
-          Etichete: ${tags || 'N/A'}`
-        }
-      ],
-      temperature: 0.3 // Temperatură mică pentru reguli și clasificări stricte
-    });
+    // Extragem textul brut întors de cele două prompturi
+    const shopifyResult = shopifyResponse.choices[0]?.message?.content || '';
+    const gmcResult = gmcResponse.choices[0]?.message?.content || '';
 
-    const result = JSON.parse(aiResponse.choices[0].message.content);
-
-    // Returnăm rezultatul înapoi la interfață
+    // Trimitem textele împachetate direct la frontend
     return res.status(200).json({
       success: true,
-      category: result.category || 'generic',
-      cleaned: {
-        title: cleanTitle,
-        description: cleanDescription
-      }
+      shopifyResult: shopifyResult,
+      gmcResult: gmcResult
     });
 
   } catch (error) {
-    console.error("Eroare Backend AI:", error);
-    return res.status(500).json({ success: false, error: error.message });
+    console.error('Eroare Backend AI:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Eroare internă de server la generarea AI' 
+    });
   }
 }
