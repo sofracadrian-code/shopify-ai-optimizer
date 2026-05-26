@@ -1,7 +1,35 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
+// ==========================================
+// 1. IMPORTURI INDIVIDUALE PENTRU SHOPIFY (Adăugate acum)
+// ==========================================
+import { SHOPIFY_DEFAULT_PROMPT } from '../src/prompts/shopify/default.js';
+import { SHOPIFY_ELECTRONICS_PROMPT } from '../src/prompts/shopify/electronics.js';
+import { SHOPIFY_FASHION_PROMPT } from '../src/prompts/fashion.js'; // Atenție dacă Adrian a pus fashion direct în src sau în shopify
+import { SHOPIFY_HOME_PROMPT } from '../src/prompts/shopify/home.js';
+import { SHOPIFY_MOBILITY_PROMPT } from '../src/prompts/shopify/mobility.js';
+import { SHOPIFY_TOOLS_PROMPT } from '../src/prompts/shopify/tools.js';
+
+// ==========================================
+// 2. IMPORTURI INDIVIDUALE PENTRU GMC (Adăugate acum)
+// ==========================================
+import { GMC_DEFAULT_PROMPT } from '../src/prompts/gmc/default.js';
+import { GMC_ELECTRONICS_PROMPT } from '../src/prompts/gmc/electronics.js';
+import { GMC_FASHION_PROMPT } from '../src/prompts/gmc/fashion.js';
+import { GMC_HOME_PROMPT } from '../src/prompts/gmc/home.js';
+import { GMC_MOBILITY_PROMPT } from '../src/prompts/gmc/mobility.js';
+import { GMC_TOOLS_PROMPT } from '../src/prompts/gmc/tools.js';
+
+// ==========================================
+// 3. IMPORTUL PENTRU TAG-UL DE VALIDARE (Înlocuit cel vechi)
+// ==========================================
+import { AI_OPTIMIZER_TAG } from '../src/prompts/constants.js';
+
+// Lista de categorii pentru butoanele de pe ecran (Rămâne neatinsă)
 const CATEGORIES = ['default', 'tools', 'electronics', 'fashion', 'mobility', 'home'];
+
+// De aici încolo continuă codul paginii lui Adrian...
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('default');
