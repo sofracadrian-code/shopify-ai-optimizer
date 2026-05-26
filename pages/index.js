@@ -107,7 +107,6 @@ export default function Home() {
     }
   };
 
-  // FLUX ACTUALIZAT: Filtrare după etichetă + adăugare automată "claudeuniv"
   const startShopifyOptimization = async () => {
     if (selectedProductIds.length === 0) return;
     
@@ -115,7 +114,6 @@ export default function Home() {
     let skippedCount = 0;
     const idsToProcess = [];
 
-    // Pasul 1: Verificare inițială pentru eticheta 'claudeuniv'
     for (const i of selectedProductIds) {
       const currentTags = (updatedProducts[i].Tags || updatedProducts[i].tags || "").toLowerCase();
       
@@ -127,20 +125,16 @@ export default function Home() {
       }
     }
 
-    // Actualizăm rapid interfața ca să se vadă produsele sărite
     setProducts([...updatedProducts]);
 
-    // Dacă au fost găsite produse deja optimizate, emitem atenționarea chiar de la început
     if (skippedCount > 0) {
-      alert(`⚠️ Atenție: Am detectat ${skippedCount} produse care au deja eticheta "claudeuniv". Acestea au fost sărite automat de la optimizare pentru a economisi tokeni.`);
+      alert(`⚠️ Atenție: Am detectat ${skippedCount} produse care au deja eticheta "claudeuniv". Acestea au fost sărite automat de la optimizare.`);
     }
 
-    // Dacă toate produsele selectate aveau eticheta, ne oprim aici
     if (idsToProcess.length === 0) return;
 
     setLoading(true);
 
-    // Pasul 2: Procesarea produselor rămase
     for (const i of idsToProcess) {
       updatedProducts[i].aiStatus = 'Se procesează...';
       setProducts([...updatedProducts]);
@@ -186,13 +180,11 @@ export default function Home() {
           updatedProducts[i].seoTitle = extractSegment(shopifyText, 'SEOTITLE');
           updatedProducts[i].seoDescription = extractSegment(shopifyText, 'SEODESC');
           
-          // Tratarea etichetelor: Extragem ce a generat AI-ul și adăugăm forțat "claudeuniv"
           let aiTags = extractSegment(shopifyText, 'TAGS');
           if (!aiTags) {
             aiTags = updatedProducts[i].Tags || updatedProducts[i].tags || '';
           }
           
-          // Adăugăm eticheta în mod curat (verificăm să nu fie deja scrisă de AI)
           if (!aiTags.toLowerCase().includes("claudeuniv")) {
             updatedProducts[i].tags = aiTags ? `${aiTags}, claudeuniv` : 'claudeuniv';
           } else {
@@ -373,13 +365,21 @@ export default function Home() {
 
   return (
     <div style={{ padding: '40px', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
-      {/* HEADER */}
-      <header style={{ marginBottom: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h1 style={{ color: '#111827', fontSize: '28px', fontWeight: 'bold' }}>Golden Bridge Store - AI Optimizer</h1>
-          <p style={{ color: '#4b5563' }}>Generează automat datele Shopify, iar pentru Google Merchant Center activează doar produsele dorite.</p>
+      
+      {/* HEADER INTEGRAT CU SIGLA EXPERTĂ GBS */}
+      <header style={{ marginBottom: '35px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '25px' }}>
+          <img 
+            src="/logo-gbs.jpg" 
+            alt="Golden Bridge Store Logo" 
+            style={{ height: '90px', borderRadius: '6px', objectFit: 'contain', boxShadow: '0 2px 4px rgba(0,0,0,0.08)' }} 
+          />
+          <div>
+            <h1 style={{ color: '#111827', fontSize: '24px', fontWeight: 'bold', margin: '0 0 4px 0' }}>Golden Bridge Store - AI Optimizer</h1>
+            <p style={{ color: '#4b5563', margin: 0, fontSize: '14px' }}>Sistem avansat de automatizare. Produsele cu eticheta "claudeuniv" sunt protejate și sărite automat.</p>
+          </div>
         </div>
-        <Link href="/settings" style={{ backgroundColor: '#2563eb', color: '#fff', padding: '10px 20px', borderRadius: '6px', textDecoration: 'none', fontWeight: '600' }}>
+        <Link href="/settings" style={{ backgroundColor: '#2563eb', color: '#fff', padding: '10px 20px', borderRadius: '6px', textDecoration: 'none', fontWeight: '600', fontSize: '14px' }}>
           ⚙ Configurare Prompturi
         </Link>
       </header>
