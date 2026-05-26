@@ -154,7 +154,13 @@ export default function Home() {
 
         const activeShopifyPrompt = localStorage.getItem(`shopify_${category}`) || localStorage.getItem('shopify_default');
         
-        const technicalDirectives = `\n\nSTRICT INSTRUCTION: You must generate all requested segments. Inside [BODY], provide the comprehensive, full HTML product description in German. Do not skip it, do not output just a placeholder or hyphen.`;
+        const technicalDirectives = `
+
+STRICT MANDATE FOR [BODY] SEGMENT:
+- You must generate a comprehensive, full HTML product description in German inside [BODY] and [/BODY].
+- NEVER output placeholders, hyphens (-), short summaries, or phrases like "same as original".
+- Provide the complete marketing and technical text tailored for German buyers.`;
+        
         const enhancedPrompt = activeShopifyPrompt + technicalDirectives;
 
         const response = await fetch('/api/generate', {
@@ -366,11 +372,11 @@ export default function Home() {
   return (
     <div style={{ padding: '40px', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
       
-      {/* HEADER INTEGRAT CU SIGLA EXPERTĂ GBS */}
+      {/* HEADER INTEGRAT CU SIGLA CORNETĂ .PNG */}
       <header style={{ marginBottom: '35px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '25px' }}>
           <img 
-            src="/logo-gbs.jpg" 
+            src="/logo-gbs.png" 
             alt="Golden Bridge Store Logo" 
             style={{ height: '90px', borderRadius: '6px', objectFit: 'contain', boxShadow: '0 2px 4px rgba(0,0,0,0.08)' }} 
           />
@@ -481,7 +487,7 @@ export default function Home() {
       {/* POP-UP DETALII MODAL */}
       {editingProduct && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '20px' }}>
-          <div style={{ backgroundColor: '#fff', borderRadius: '8px', width: '100%', maxWidth: '980px', maxHeight: '95vh', overflowY: 'auto', padding: '30px' }}>
+          <div style={{ backgroundColor: '#fff', borderRadius: '#fff', width: '100%', maxWidth: '980px', maxHeight: '95vh', overflowY: 'auto', padding: '30px' }}>
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px' }}>
               <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#111827' }}>Editează Datele Generate de AI</h2>
