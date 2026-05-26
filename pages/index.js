@@ -1,97 +1,11 @@
 import { useState } from 'react';
 import Papa from 'papaparse';
+import Link from 'next/link';
 
 export default function Home() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Prompturile inițiale pe care le poți modifica live direct din aplicație
-  const [shopifyPrompt, setShopifyPrompt] = useState(`Ești expert SEO eCommerce pentru Germania.
-
-OBLIGATORIU:
-- Rezultatul final în germană.
-- Nu inventa specificații.
-- Nu modifica SKU.
-- Nu modifica coduri produs.
-- Nu modifica modelul.
-
-Generează:
-
-[TITLE]
-Titlu SEO 50–70 caractere
-[/TITLE]
-
-[BODY]
-Descriere HTML 300–600 cuvinte
-Folosește:
-h2
-h3
-p
-ul
-li
-[/BODY]
-
-[SEOTITLE]
-Max 60 caractere
-[/SEOTITLE]
-
-[SEODESC]
-Max 155 caractere
-[/SEODESC]
-
-[TAGS]
-Taguri separate prin virgulă
-[/TAGS]
-
-[ALT]
-Alt text imagine
-[/ALT]`);
-
-  const [gmcPrompt, setGmcPrompt] = useState(`Ești expert Google Merchant Center pentru Germania.
-
-OBLIGATORIU:
-- Rezultatul final în germană.
-- Nu inventa date.
-- Nu folosi limbaj promoțional.
-- Nu folosi HTML.
-- Nu adăuga beneficii neconfirmate.
-- Păstrează valorile tehnice.
-
-Generează:
-
-[GMC_TITLE]
-Titlu scurt și factual
-[/GMC_TITLE]
-
-[GMC_DESCRIPTION]
-Descriere factuală 150–500 caractere
-[/GMC_DESCRIPTION]
-
-[PRODUCT_TYPE]
-Tip produs
-[/PRODUCT_TYPE]
-
-[GOOGLE_CATEGORY]
-Categorie Google
-[/GOOGLE_CATEGORY]
-
-[BRAND]
-Brand real sau NECUNOSCUT
-[/BRAND]
-
-[COLOR]
-Culoare
-[/COLOR]
-
-[SIZE]
-Mărime
-[/SIZE]
-
-[MATERIAL]
-Material
-[/MATERIAL]`);
-
-  // Funcția Parser care extrage textul dintre [TAG] și [/TAG]
   const extractSegment = (text, tag) => {
     if (!text) return '';
     const regex = new RegExp(`\\[${tag}\\]([\\s\\S]*?)\\[\\/${tag}\\]`, 'i');
@@ -112,7 +26,7 @@ Material
         const mapped = onlyMainProducts.map(p => ({
           ...p,
           aiStatus: 'În așteptare',
-          // Coloane noi generate pe care le vom completa din parser
+          detectedCategory: 'În așteptare',
           optimizedTitle: '',
           bodyHtml: '',
           seoTitle: '',
@@ -145,6 +59,24 @@ Material
       setProducts([...updatedProducts]);
 
       try {
+        // Pasul 1: Detectăm inteligent categoria (Classifier-ul tău de încredere)
+        const classResponse = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: updatedProducts[i].Title || updatedProducts[i].title,
+            isClassifierOnly: true
+          }),
+        });
+        const classData = await classResponse.json();
+        const category = (classData.category || 'default').toLowerCase();
+        updatedProducts[i].detectedCategory = category.toUpperCase();
+
+        // Pasul 2: Extragem din localStorage prompturile specifice acelei categorii salvate de tine
+        const activeShopifyPrompt = localStorage.getItem(`shopify_${category}`) || localStorage.getItem('shopify_default');
+        const activeGmcPrompt = localStorage.getItem(`gmc_${category}`) || localStorage.getItem('gmc_default');
+
+        // Pasul 3: Trimitem datele către server cu prompturile rutate corect
         const response = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -153,9 +85,8 @@ Material
             description: updatedProducts[i].Body || updatedProducts[i].description,
             type: updatedProducts[i].Type || updatedProducts[i].type,
             tags: updatedProducts[i].Tags || updatedProducts[i].tags,
-            // Trimitem prompturile editate live din căsuțele text de pe ecran
-            shopifyPrompt: shopifyPrompt,
-            gmcPrompt: gmcPrompt
+            shopifyPrompt: activeShopifyPrompt,
+            gmcPrompt: activeGmcPrompt
           }),
         });
 
@@ -165,7 +96,6 @@ Material
           const shopifyText = data.shopifyResult || '';
           const gmcText = data.gmcResult || '';
 
-          // PARSER: Extragem segmentele și completăm datele pe coloane
           updatedProducts[i].optimizedTitle = extractSegment(shopifyText, 'TITLE');
           updatedProducts[i].bodyHtml = extractSegment(shopifyText, 'BODY');
           updatedProducts[i].seoTitle = extractSegment(shopifyText, 'SEOTITLE');
@@ -196,7 +126,6 @@ Material
     setLoading(false);
   };
 
-  // Funcție simplă de descărcare a rezultatului final sub formă de fișier CSV nou
   const downloadCSV = () => {
     const csv = Papa.unparse(products);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -211,51 +140,28 @@ Material
 
   return (
     <div style={{ padding: '40px', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
-      <header style={{ marginBottom: '30px' }}>
-        <h1 style={{ color: '#111827', fontSize: '28px', fontWeight: 'bold' }}>Golden Bridge Store - AI Optimizer</h1>
-        <p style={{ color: '#4b5563' }}>Configurează prompturile, încarcă fișierul CSV și optimizează datele direct pentru Germania.</p>
+      <header style={{ marginBottom: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 style={{ color: '#111827', fontSize: '28px', fontWeight: 'bold' }}>Golden Bridge Store - AI Optimizer</h1>
+          <p style={{ color: '#4b5563' }}>Încarcă fișierul CSV, sistemul va detecta categoria și va ruta automat promptul corect.</p>
+        </div>
+        <Link href="/settings" style={{ backgroundColor: '#2563eb', color: '#fff', padding: '10px 20px', borderRadius: '6px', textDecoration: 'none', fontWeight: '600', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+          ⚙ Configurare Prompturi
+        </Link>
       </header>
-
-      {/* SECȚIUNEA NOUĂ: Panoul de Control al Prompturilor direct din Browser */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '30px' }}>
-        <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-          <h3 style={{ margin: '0 0 10px 0', color: '#1f2937' }}>1. Master Prompt SHOPIFY (Marketing & SEO)</h3>
-          <textarea 
-            value={shopifyPrompt}
-            onChange={(e) => setShopifyPrompt(e.target.value)}
-            style={{ width: '100%', height: '220px', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontFamily: 'monospace', fontSize: '13px' }}
-          />
-        </div>
-        
-        <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-          <h3 style={{ margin: '0 0 10px 0', color: '#1f2937' }}>2. Master Prompt GMC (Google Merchant Center)</h3>
-          <textarea 
-            value={gmcPrompt}
-            onChange={(e) => setGmcPrompt(e.target.value)}
-            style={{ width: '100%', height: '220px', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontFamily: 'monospace', fontSize: '13px' }}
-          />
-        </div>
-      </div>
 
       {/* Zona de Upload și Actiuni */}
       <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '30px', display: 'flex', gap: '20px', alignItems: 'center' }}>
         <input type="file" accept=".csv" onChange={handleFileUpload} style={{ fontSize: '16px', color: '#4b5563' }} />
         
         {products.length > 0 && (
-          <button 
-            onClick={startAIOptimization}
-            disabled={loading}
-            style={{ backgroundColor: loading ? '#9ca3af' : '#2563eb', color: '#fff', padding: '10px 20px', borderRadius: '6px', border: 'none', fontSize: '16px', fontWeight: '600', cursor: loading ? 'not-allowed' : 'pointer' }}
-          >
-            {loading ? 'Sistemul AI lucrează...' : 'Pornește Optimizarea AI'}
+          <button onClick={startAIOptimization} disabled={loading} style={{ backgroundColor: loading ? '#9ca3af' : '#2563eb', color: '#fff', padding: '10px 20px', borderRadius: '6px', border: 'none', fontSize: '16px', fontWeight: '600', cursor: loading ? 'not-allowed' : 'pointer' }}>
+            {loading ? 'Rulare Prompt Router...' : 'Pornește Optimizarea AI'}
           </button>
         )}
 
         {products.some(p => p.aiStatus === 'Optimizat') && (
-          <button 
-            onClick={downloadCSV}
-            style={{ backgroundColor: '#16a34a', color: '#fff', padding: '10px 20px', borderRadius: '6px', border: 'none', fontSize: '16px', fontWeight: '600', cursor: 'pointer' }}
-          >
+          <button onClick={downloadCSV} style={{ backgroundColor: '#16a34a', color: '#fff', padding: '10px 20px', borderRadius: '6px', border: 'none', fontSize: '16px', fontWeight: '600', cursor: 'pointer' }}>
             Descarcă Noul CSV Optimizat
           </button>
         )}
@@ -268,15 +174,17 @@ Material
             <thead style={{ backgroundColor: '#f3f4f6', borderBottom: '1px solid #e5e7eb' }}>
               <tr>
                 <th style={{ padding: '12px 16px', color: '#374151' }}>Titlu Original</th>
-                <th style={{ padding: '12px 16px', color: '#374151' }}>Titlu Nou SEO (Shopify)</th>
-                <th style={{ padding: '12px 16px', color: '#374151' }}>Titlu Tehnic (GMC)</th>
+                <th style={{ padding: '12px 16px', color: '#374151' }}>Categorie Detectată</th>
+                <th style={{ padding: '12px 16px', color: '#374151' }}>Titlu Shopify (SEO)</th>
+                <th style={{ padding: '12px 16px', color: '#374151' }}>Titlu GMC (Factual)</th>
                 <th style={{ padding: '12px 16px', color: '#374151' }}>Status</th>
               </tr>
             </thead>
             <tbody>
               {products.slice(0, 20).map((prod, index) => (
                 <tr key={index} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                  <td style={{ padding: '12px 16px', color: '#111827', maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prod.Title || prod.title}</td>
+                  <td style={{ padding: '12px 16px', color: '#111827', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prod.Title || prod.title}</td>
+                  <td style={{ padding: '12px 16px', color: '#2563eb', fontWeight: 'bold', fontSize: '13px' }}>{prod.detectedCategory}</td>
                   <td style={{ padding: '12px 16px', color: '#16a34a', fontWeight: '500' }}>{prod.optimizedTitle || '-'}</td>
                   <td style={{ padding: '12px 16px', color: '#ea580c', fontWeight: '500' }}>{prod.gmcTitle || '-'}</td>
                   <td style={{ padding: '12px 16px' }}>
