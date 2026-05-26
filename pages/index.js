@@ -12,28 +12,23 @@ export default function Home() {
   const [selectedProductIndex, setSelectedProductIndex] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
 
-  // Funcție de extragere îmbunătățită și mult mai tolerantă
   const extractSegment = (text, tag) => {
     if (!text) return '';
     
-    // Încercare standard cu taguri precise [TAG]...[/TAG]
     const regexStandard = new RegExp(`\\[${tag}\\]([\\s\\S]*?)\\[\\/${tag}\\]`, 'i');
     const matchStandard = text.match(regexStandard);
     if (matchStandard && matchStandard[1].trim()) return matchStandard[1].trim();
 
-    // Căutare specială extinsă pentru corpul descrierii (BODY)
     if (tag === 'BODY') {
       const extraBodyRegex = /\[(?:BODY|DESCRIPTION|PRODUCT_DESCRIPTION|BESCHREIBUNG)\]([\s\S]*?)\[\/(?:BODY|DESCRIPTION|PRODUCT_DESCRIPTION|BESCHREIBUNG)\]/i;
       const matchExtra = text.match(extraBodyRegex);
       if (matchExtra && matchExtra[1].trim()) return matchExtra[1].trim();
       
-      // Fallback extrem: Dacă textul conține paragrafe lungi în germană dar au picat tagurile, nu returna deșert
       if (text.includes('Vorteile auf einen Blick') || text.includes('Technische Daten')) {
         return text.replace(/\[\/?\w+\]/g, '').trim(); 
       }
     }
 
-    // Căutare flexibilă după formatul Markdown sau text simplu: **TAG**: valoare
     const alternativeCleanTag = tag.replace('GMC_', '');
     const regexAlt = new RegExp(`(?:\\*\\*|\\b)(?:${tag}|${alternativeCleanTag})(?:\\*\\*)?:?\\s*([\\s\\S]*?)(?=(?:\\*\\*|\\b)(?:TITLE|BODY|DESCRIPTION|SEOTITLE|SEODESC|TAGS|ALT1|ALT2|ALT3|ALT4|ALT5|GMC_TITLE|GMC_DESCRIPTION|PRODUCT_TYPE|GOOGLE_CATEGORY|BRAND|COLOR|SIZE|MATERIAL)\\b|$)`, 'i');
     const matchAlt = text.match(regexAlt);
@@ -56,14 +51,13 @@ export default function Home() {
         
         const onlyMainProducts = results.data.filter(p => p && (p.Title || p.title));
         const mapped = onlyMainProducts.map(p => {
-          // Detectăm corect câmpul de descriere din exportul Shopify CSV standard
           const rawDescription = p["Body (HTML)"] || p["Body"] || p["bodyhtml"] || p["Description"] || p["description"] || "";
           const src = p["Image Src"] || p["image_src"] || p["Image URL"] || "";
           const imagesArray = src ? src.split(',').map(img => img.trim()).filter(Boolean) : [];
 
           return {
             ...p,
-            originalDescription: rawDescription, // Păstrăm o copie curată, neatinsă de procesările AI ulterior
+            originalDescription: rawDescription, 
             aiStatus: 'În așteptare',
             gmcStatus: 'Neinițiat',
             detectedCategory: 'În așteptare',
@@ -113,14 +107,41 @@ export default function Home() {
     }
   };
 
-  // FLUX CORECTAT: Optimizare Shopify
+  // FLUX ACTUALIZAT: Filtrare după etichetă + adăugare automată "claudeuniv"
   const startShopifyOptimization = async () => {
     if (selectedProductIds.length === 0) return;
+    
+    const updatedProducts = [...products];
+    let skippedCount = 0;
+    const idsToProcess = [];
+
+    // Pasul 1: Verificare inițială pentru eticheta 'claudeuniv'
+    for (const i of selectedProductIds) {
+      const currentTags = (updatedProducts[i].Tags || updatedProducts[i].tags || "").toLowerCase();
+      
+      if (currentTags.includes("claudeuniv")) {
+        updatedProducts[i].aiStatus = 'Sărit (Deja Optimizat)';
+        skippedCount++;
+      } else {
+        idsToProcess.push(i);
+      }
+    }
+
+    // Actualizăm rapid interfața ca să se vadă produsele sărite
+    setProducts([...updatedProducts]);
+
+    // Dacă au fost găsite produse deja optimizate, emitem atenționarea chiar de la început
+    if (skippedCount > 0) {
+      alert(`⚠️ Atenție: Am detectat ${skippedCount} produse care au deja eticheta "claudeuniv". Acestea au fost sărite automat de la optimizare pentru a economisi tokeni.`);
+    }
+
+    // Dacă toate produsele selectate aveau eticheta, ne oprim aici
+    if (idsToProcess.length === 0) return;
+
     setLoading(true);
 
-    const updatedProducts = [...products];
-
-    for (const i of selectedProductIds) {
+    // Pasul 2: Procesarea produselor rămase
+    for (const i of idsToProcess) {
       updatedProducts[i].aiStatus = 'Se procesează...';
       setProducts([...updatedProducts]);
 
@@ -139,7 +160,6 @@ export default function Home() {
 
         const activeShopifyPrompt = localStorage.getItem(`shopify_${category}`) || localStorage.getItem('shopify_default');
         
-        // Adăugăm o regulă tehnică de sistem strictă ca să evităm output-urile goale sau blocate
         const technicalDirectives = `\n\nSTRICT INSTRUCTION: You must generate all requested segments. Inside [BODY], provide the comprehensive, full HTML product description in German. Do not skip it, do not output just a placeholder or hyphen.`;
         const enhancedPrompt = activeShopifyPrompt + technicalDirectives;
 
@@ -148,7 +168,7 @@ export default function Home() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title: updatedProducts[i].Title || updatedProducts[i].title,
-            description: updatedProducts[i].originalDescription, // Trimitem sursa curată din CSV
+            description: updatedProducts[i].originalDescription, 
             type: updatedProducts[i].Type || updatedProducts[i].type,
             tags: updatedProducts[i].Tags || updatedProducts[i].tags,
             shopifyPrompt: enhancedPrompt,
@@ -165,7 +185,19 @@ export default function Home() {
           updatedProducts[i].bodyHtml = extractSegment(shopifyText, 'BODY');
           updatedProducts[i].seoTitle = extractSegment(shopifyText, 'SEOTITLE');
           updatedProducts[i].seoDescription = extractSegment(shopifyText, 'SEODESC');
-          updatedProducts[i].tags = extractSegment(shopifyText, 'TAGS');
+          
+          // Tratarea etichetelor: Extragem ce a generat AI-ul și adăugăm forțat "claudeuniv"
+          let aiTags = extractSegment(shopifyText, 'TAGS');
+          if (!aiTags) {
+            aiTags = updatedProducts[i].Tags || updatedProducts[i].tags || '';
+          }
+          
+          // Adăugăm eticheta în mod curat (verificăm să nu fie deja scrisă de AI)
+          if (!aiTags.toLowerCase().includes("claudeuniv")) {
+            updatedProducts[i].tags = aiTags ? `${aiTags}, claudeuniv` : 'claudeuniv';
+          } else {
+            updatedProducts[i].tags = aiTags;
+          }
           
           updatedProducts[i].altText1 = extractSegment(shopifyText, 'ALT1') || extractSegment(shopifyText, 'ALT');
           updatedProducts[i].altText2 = extractSegment(shopifyText, 'ALT2');
@@ -173,7 +205,6 @@ export default function Home() {
           updatedProducts[i].altText4 = extractSegment(shopifyText, 'ALT4');
           updatedProducts[i].altText5 = extractSegment(shopifyText, 'ALT5');
 
-          // Fallback de siguranță pentru titlu
           if (!updatedProducts[i].optimizedTitle && updatedProducts[i].seoTitle) {
             updatedProducts[i].optimizedTitle = updatedProducts[i].seoTitle;
           }
@@ -190,7 +221,6 @@ export default function Home() {
     setLoading(false);
   };
 
-  // FLUX CORECTAT: Generare corectă pentru Google Merchant Center (GMC)
   const generateGmcForSingleProduct = async (index, e) => {
     if (e) e.stopPropagation();
     setGmcLoadingIndex(index);
@@ -207,9 +237,9 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: updatedProducts[index].Title || updatedProducts[index].title,
-          description: updatedProducts[index].originalDescription, // FOARTE IMPORTANT: Folosim descrierea originală, nu cea modificată de Shopify
+          description: updatedProducts[index].originalDescription, 
           type: updatedProducts[index].Type || updatedProducts[index].type,
-          tags: updatedProducts[index].Tags || updatedProducts[index].tags,
+          tags: updatedProducts[index].tags || updatedProducts[index].Tags || '', 
           gmcPrompt: activeGmcPrompt,
           runGmcOnly: true
         }),
@@ -229,7 +259,6 @@ export default function Home() {
         updatedProducts[index].size = extractSegment(gmcText, 'SIZE');
         updatedProducts[index].material = extractSegment(gmcText, 'MATERIAL');
 
-        // Dacă segmentul principal a eșuat la parsare din cauza tagurilor lipsă, punem un text extras curat
         if (!updatedProducts[index].gmcTitle && gmcText) {
           updatedProducts[index].gmcTitle = updatedProducts[index].optimizedTitle || updatedProducts[index].Title;
         }
@@ -270,7 +299,7 @@ export default function Home() {
           title: editingProduct.Title || editingProduct.title,
           description: editingProduct.originalDescription,
           type: editingProduct.Type || editingProduct.type,
-          tags: editingProduct.Tags || editingProduct.tags,
+          tags: editingProduct.tags || editingProduct.Tags || '',
           shopifyPrompt: !isGmc ? localizedPrompt : undefined,
           gmcPrompt: isGmc ? localizedPrompt : undefined,
           runShopifyOnly: !isGmc,
@@ -418,8 +447,8 @@ export default function Home() {
                   </td>
                   <td style={{ padding: '12px 16px', color: '#111827', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prod.Title || prod.title}</td>
                   <td style={{ padding: '12px 16px', color: '#2563eb', fontWeight: 'bold', fontSize: '12px' }}>{prod.detectedCategory}</td>
-                  <td style={{ padding: '12px 16px', color: '#16a34a', fontWeight: '500' }}>
-                    {prod.aiStatus === 'Se procesează...' ? 'Generare...' : (prod.optimizedTitle || '-')}
+                  <td style={{ padding: '12px 16px', color: prod.aiStatus === 'Sărit (Deja Optimizat)' ? '#9ca3af' : '#16a34a', fontWeight: '500' }}>
+                    {prod.aiStatus === 'Se procesează...' ? 'Generare...' : (prod.optimizedTitle || (prod.aiStatus === 'Sărit (Deja Optimizat)' ? 'Sărit (Optimizat)' : '-'))}
                   </td>
                   <td style={{ padding: '12px 16px', color: '#ea580c', fontWeight: '500' }}>{prod.gmcTitle || '-'}</td>
                   <td style={{ padding: '12px 16px' }} onClick={(e) => e.stopPropagation()}>
@@ -432,13 +461,13 @@ export default function Home() {
                         + Generează GMC
                       </button>
                     )}
-                    {(prod.aiStatus === 'Se procesează...' || prod.gmcStatus !== 'Neinițiat') && (
+                    {(prod.aiStatus === 'Se procesează...' || prod.aiStatus === 'Sărit (Deja Optimizat)' || prod.gmcStatus !== 'Neinițiat') && (
                       <span style={{ 
-                        backgroundColor: prod.gmcStatus === 'GMC Gata' ? '#ffedd5' : '#e5e7eb', 
-                        color: prod.gmcStatus === 'GMC Gata' ? '#c2410c' : '#374151', 
+                        backgroundColor: prod.aiStatus === 'Sărit (Deja Optimizat)' ? '#fee2e2' : (prod.gmcStatus === 'GMC Gata' ? '#ffedd5' : '#e5e7eb'), 
+                        color: prod.aiStatus === 'Sărit (Deja Optimizat)' ? '#991b1b' : (prod.gmcStatus === 'GMC Gata' ? '#c2410c' : '#374151'), 
                         padding: '4px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: '600' 
                       }}>
-                        {prod.gmcStatus !== 'Neinițiat' ? prod.gmcStatus : prod.aiStatus}
+                        {prod.aiStatus === 'Sărit (Deja Optimizat)' ? 'Sărit' : (prod.gmcStatus !== 'Neinițiat' ? prod.gmcStatus : prod.aiStatus)}
                       </span>
                     )}
                   </td>
