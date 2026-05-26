@@ -12,14 +12,24 @@ export default function Home() {
   const [selectedProductIndex, setSelectedProductIndex] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
 
+  // Funcție de extragere îmbunătățită pentru a prinde descrierea indiferent de mici variații de etichete
   const extractSegment = (text, tag) => {
     if (!text) return '';
+    
+    // Încercare standard cu eticheta cerută (ex: [BODY]...[/BODY])
     const regexStandard = new RegExp(`\\[${tag}\\]([\\s\\S]*?)\\[\\/${tag}\\]`, 'i');
     const matchStandard = text.match(regexStandard);
     if (matchStandard && matchStandard[1].trim()) return matchStandard[1].trim();
 
+    // Toleranță specială pentru corpul descrierii (dacă modelul scrie DESCRIPTION, SCHRITT sau text liber)
+    if (tag === 'BODY') {
+      const extraBodyRegex = /\[(?:BODY|DESCRIPTION|PRODUCT_DESCRIPTION|BESCHREIBUNG)\]([\s\S]*?)\[\/(?:BODY|DESCRIPTION|PRODUCT_DESCRIPTION|BESCHREIBUNG)\]/i;
+      const matchExtra = text.match(extraBodyRegex);
+      if (matchExtra && matchExtra[1].trim()) return matchExtra[1].trim();
+    }
+
     const alternativeCleanTag = tag.replace('GMC_', '');
-    const regexAlt = new RegExp(`(?:\\*\\*|\\b)(?:${tag}|${alternativeCleanTag})(?:\\*\\*)?:?\\s*([\\s\\S]*?)(?=(?:\\*\\*|\\b)(?:TITLE|BODY|SEOTITLE|SEODESC|TAGS|ALT1|ALT2|ALT3|ALT4|ALT5|GMC_TITLE|GMC_DESCRIPTION|PRODUCT_TYPE|GOOGLE_CATEGORY|BRAND|COLOR|SIZE|MATERIAL)\\b|$)`, 'i');
+    const regexAlt = new RegExp(`(?:\\*\\*|\\b)(?:${tag}|${alternativeCleanTag})(?:\\*\\*)?:?\\s*([\\s\\S]*?)(?=(?:\\*\\*|\\b)(?:TITLE|BODY|DESCRIPTION|SEOTITLE|SEODESC|TAGS|ALT1|ALT2|ALT3|ALT4|ALT5|GMC_TITLE|GMC_DESCRIPTION|PRODUCT_TYPE|GOOGLE_CATEGORY|BRAND|COLOR|SIZE|MATERIAL)\\b|$)`, 'i');
     const matchAlt = text.match(regexAlt);
     if (matchAlt && matchAlt[1].trim()) {
       return matchAlt[1].replace(/^[:\s\-*]+|[:\s\-*]+$/g, '').trim();
@@ -41,20 +51,10 @@ export default function Home() {
       complete: (results) => {
         if (!results.data) return;
         
-        // Filtrare și mapare inteligentă a imaginilor din coloane multiple posibile
         const onlyMainProducts = results.data.filter(p => p && p.Title && p.Title.trim() !== '');
         const mapped = onlyMainProducts.map(p => {
-          // Verificăm toate denumirile comune de coloane pentru imagini din Shopify / sisteme ERP
-          const src1 = p["Image Src"] || p["image_src"] || p["Image URL"] || p["Variant Image"] || "";
-          const src2 = p["Line text"] || p["URL"] || ""; // Fallback în caz de structuri custom
-          
-          let combinedSrc = `${src1},${src2}`;
-          const imagesArray = combinedSrc 
-            ? combinedSrc.split(/[\s,]+/).map(img => img.trim()).filter(img => img.startsWith('http'))
-            : [];
-
-          // Eliminăm duplicatele de URL-uri dacă există în aceeași celulă
-          const uniqueImages = [...new Set(imagesArray)];
+          const src = p["Image Src"] || p["image_src"] || p["Image URL"] || "";
+          const imagesArray = src ? [src.trim()] : []; // Lăsăm logica simplă de imagine pe mai târziu, așa cum ai cerut
 
           return {
             ...p,
@@ -79,7 +79,7 @@ export default function Home() {
             color: '',
             size: '',
             material: '',
-            productImages: uniqueImages
+            productImages: imagesArray
           };
         });
         setProducts(mapped);
@@ -194,7 +194,7 @@ export default function Home() {
         body: JSON.stringify({
           title: updatedProducts[index].Title || updatedProducts[index].title,
           description: updatedProducts[index].Body || updatedProducts[index].description,
-          type: updatedProducts[index].Type || updatedProducts[i].type,
+          type: updatedProducts[index].Type || updatedProducts[index].type,
           tags: updatedProducts[index].Tags || updatedProducts[index].tags,
           gmcPrompt: activeGmcPrompt,
           runGmcOnly: true
@@ -229,7 +229,6 @@ export default function Home() {
     setGmcLoadingIndex(null);
   };
 
-  // CORECTURĂ: Forțăm limba germană direct în structura micro-promptului trimis la API
   const regenerateSingleField = async (fieldKey, tagLabel, isGmc = false) => {
     setRegenLoadingField(fieldKey);
     const category = (editingProduct.detectedCategory || 'default').toLowerCase();
@@ -278,14 +277,17 @@ export default function Home() {
     setRegenLoadingField(null);
   };
 
+  // DESCHIDERE POP-UP: Încărcăm starea curentă exact din indexul din tabel
   const openEditModal = (index) => {
     setSelectedProductIndex(index);
     setEditingProduct({ ...products[index] });
   };
 
+  // SALVARE: Actualizăm array-ul principal corect folosind indexul salvat
   const saveProductEdits = () => {
+    if (selectedProductIndex === null) return;
     const updatedProducts = [...products];
-    updatedProducts[selectedProductIndex] = editingProduct;
+    updatedProducts[selectedProductIndex] = { ...editingProduct }; // Salvăm copia modificată complet înapoi în tabel
     setProducts(updatedProducts);
     setSelectedProductIndex(null);
     setEditingProduct(null);
@@ -597,37 +599,9 @@ export default function Home() {
               </div>
             </div>
 
-            {/* MANAGEMENT IMAGINI */}
+            {/* MANAGEMENT IMAGINI (Ascuns vizual la cerere dar păstrat funcțional în cod) */}
             <div style={{ marginTop: '25px', backgroundColor: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '15px', color: '#0f172a', fontWeight: 'bold' }}>Galeria de Imagini a Produsului</h3>
-                </div>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button onClick={addImageUrl} style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>+ Adaugă URL Imagine</button>
-                  <label style={{ backgroundColor: '#0284c7', color: '#fff', padding: '6px 12px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>
-                    + Încarcă din PC
-                    <input type="file" accept="image/*" multiple onChange={handleLocalImageUpload} style={{ display: 'none' }} />
-                  </label>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '10px' }}>
-                {editingProduct.productImages && editingProduct.productImages.length > 0 ? (
-                  editingProduct.productImages.map((img, idx) => (
-                    <div key={idx} style={{ minWidth: '110px', width: '110px', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '8px', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      {idx === 0 && <span style={{ position: 'absolute', top: '2px', left: '2px', backgroundColor: '#16a34a', color: '#fff', fontSize: '9px', fontWeight: 'bold', padding: '2px 4px', borderRadius: '3px' }}>Main</span>}
-                      <img src={img} alt="" style={{ width: '90px', height: '90px', objectFit: 'contain', borderRadius: '4px', marginBottom: '8px' }} />
-                      <div style={{ display: 'flex', gap: '4px', width: '100%', justifyContent: 'center' }}>
-                        <button onClick={() => moveImageOrder(idx, -1)} disabled={idx === 0} style={{ padding: '2px 6px', fontSize: '10px', border: '1px solid #cbd5e1', background: '#f8fafc', borderRadius: '3px' }}>◀</button>
-                        <button onClick={() => removeImage(idx)} style={{ padding: '2px 6px', fontSize: '10px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '3px' }}>✕</button>
-                        <button onClick={() => moveImageOrder(idx, 1)} disabled={idx === editingProduct.productImages.length - 1} style={{ padding: '2px 6px', fontSize: '10px', border: '1px solid #cbd5e1', background: '#f8fafc', borderRadius: '3px' }}>▶</button>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic' }}>Nicio imagine importată.</p>
-                )}
-              </div>
+              <h3 style={{ margin: 0, fontSize: '14px', color: '#64748b', fontStyle: 'italic' }}>Secțiune imagini (Sărită momentan conform instrucțiunilor)</h3>
             </div>
 
             {/* ACTION FOOTER */}
