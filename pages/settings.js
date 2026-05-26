@@ -24,7 +24,8 @@ import { GMC_TOOLS_PROMPT } from '../src/prompts/gmc/tools.js';
 // ==========================================
 // 3. IMPORTUL PENTRU TAG-UL DE VALIDARE
 // ==========================================
-import { AI_OPTIMIZER_TAG } from '../src/prompts/constants.js';
+// CUM TREBUIE SĂ FIE (CORECT):
+import { AI_OPTIMIZER_TAG } from '../src/constants.js';
 
 const CATEGORIES = ['default', 'tools', 'electronics', 'fashion', 'mobility', 'home'];
 
