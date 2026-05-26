@@ -437,4 +437,282 @@ STRICT MANDATE FOR [BODY] SEGMENT:
     executeDownload(products, "golden_bridge");
   };
 
-  const labelStyle = { display: 'flex', justifyContent: 'space-between', alignItems:
+  const labelStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', fontWeight: 'bold', marginBottom: '2px', color: '#374151' };
+  const regenBtnStyle = (isFieldLoading) => ({
+    background: 'none', border: 'none', color: '#2563eb', fontSize: '12px', cursor: isFieldLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '3px', fontWeight: '600', padding: '2px 5px', borderRadius: '3px'
+  });
+
+  // Filtrăm elementele pentru randarea cu Scroll Infinit
+  const displayedProducts = products.slice(0, visibleCount);
+
+  return (
+    <div style={{ padding: '40px', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
+      
+      {/* HEADER INTEGRAT CU SIGLA CORNETĂ .PNG */}
+      <header style={{ marginBottom: '35px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '25px' }}>
+          <img 
+            src="/logo-gbs.png" 
+            alt="Golden Bridge Store Logo" 
+            style={{ height: '90px', borderRadius: '6px', objectFit: 'contain', boxShadow: '0 2px 4px rgba(0,0,0,0.08)' }} 
+          />
+          <div>
+            <h1 style={{ color: '#111827', fontSize: '24px', fontWeight: 'bold', margin: '0 0 4px 0' }}>Golden Bridge Store - AI Optimizer</h1>
+            <p style={{ color: '#4b5563', margin: 0, fontSize: '14px' }}>Sistem avansat de automatizare. Produsele cu eticheta "claudeuniv" sunt protejate și sărite automat.</p>
+          </div>
+        </div>
+        <Link href="/settings" style={{ backgroundColor: '#2563eb', color: '#fff', padding: '10px 20px', borderRadius: '6px', textDecoration: 'none', fontWeight: '600', fontSize: '14px' }}>
+          ⚙ Configurare Prompturi
+        </Link>
+      </header>
+
+      {/* PANOU DE CONTROL MODURI DE LUCRU */}
+      <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '30px', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #e5e7eb' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#4b5563', uppercase: 'true' }}>MOD DE LUCRU:</span>
+          
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '8px 12px', borderRadius: '6px', backgroundColor: workMode === 'manual' ? '#eff6ff' : 'transparent', border: workMode === 'manual' ? '1px solid #bfdbfe' : '1px solid transparent', transition: 'all 0.2s' }}>
+            <input type="radio" name="workMode" value="manual" checked={workMode === 'manual'} disabled={loading} onChange={(e) => setWorkMode(e.target.value)} style={{ cursor: 'pointer' }} />
+            <div>
+              <span style={{ fontSize: '13px', fontWeight: '600', display: 'block', color: '#1e3a8a' }}>Mod Manual</span>
+              <span style={{ fontSize: '11px', color: '#6b7280' }}>Alegi și bifezi produsele din tabel</span>
+            </div>
+          </label>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '8px 12px', borderRadius: '6px', backgroundColor: workMode === 'automatic' ? '#f0fdf4' : 'transparent', border: workMode === 'automatic' ? '1px solid #bbf7d0' : '1px solid transparent', transition: 'all 0.2s' }}>
+            <input type="radio" name="workMode" value="automatic" checked={workMode === 'automatic'} disabled={loading} onChange={(e) => setWorkMode(e.target.value)} style={{ cursor: 'pointer' }} />
+            <div>
+              <span style={{ fontSize: '13px', fontWeight: '600', display: 'block', color: '#14532d' }}>Mod Automat (Uzine)</span>
+              <span style={{ fontSize: '11px', color: '#6b7280' }}>Toate produsele la rând + Auto-salvare la 50 bucăți</span>
+            </div>
+          </label>
+        </div>
+
+        {/* STATISTICI INTEGRATE REALE */}
+        {products.length > 0 && (
+          <div style={{ fontSize: '13px', color: '#374151', backgroundColor: '#f3f4f6', padding: '8px 14px', borderRadius: '6px', fontWeight: '500' }}>
+            Catalog încarcat: <strong style={{ color: '#2563eb' }}>{products.length}</strong> produse | Vizibile la scroll: <strong>{displayedProducts.length}</strong>
+          </div>
+        )}
+      </div>
+
+      {/* ACTIUNI FILE & PORNIRE MOTOR DUAL */}
+      <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '30px', display: 'flex', gap: '20px', alignItems: 'center', justifyContent: 'space-between' }}>
+        <input type="file" accept=".csv" onChange={handleFileUpload} disabled={loading} style={{ fontSize: '15px', color: '#4b5563' }} />
+        
+        <div style={{ display: 'flex', gap: '12px' }}>
+          {products.length > 0 && (
+            <>
+              {!loading ? (
+                <button 
+                  onClick={startShopifyOptimization} 
+                  disabled={workMode === 'manual' && selectedProductIds.length === 0} 
+                  style={{ 
+                    backgroundColor: workMode === 'automatic' ? '#16a34a' : (selectedProductIds.length === 0 ? '#cbd5e1' : '#2563eb'), 
+                    color: '#fff', padding: '12px 24px', borderRadius: '6px', border: 'none', fontSize: '15px', fontWeight: '600', 
+                    cursor: (workMode === 'manual' && selectedProductIds.length === 0) ? 'not-allowed' : 'pointer', transition: 'background-color 0.2s'
+                  }}
+                >
+                  {workMode === 'automatic' ? '▶️ Pornește Automatizarea Globală' : `▶️ Optimizează Selecția (${selectedProductIds.length})`}
+                </button>
+              ) : (
+                <button 
+                  onClick={stopProcessing} 
+                  style={{ backgroundColor: '#dc2626', color: '#fff', padding: '12px 24px', borderRadius: '6px', border: 'none', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}
+                >
+                  🛑 Oprește Procesarea (Pauză)
+                </button>
+              )}
+            </>
+          )}
+
+          {products.some(p => p.aiStatus === 'Optimizat') && (
+            <button onClick={downloadCSV} disabled={loading} style={{ backgroundColor: '#4f46e5', color: '#fff', padding: '12px 24px', borderRadius: '6px', border: 'none', fontSize: '15px', fontWeight: '600', cursor: loading ? 'not-allowed' : 'pointer' }}>
+              📥 Descarcă Master CSV
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* BARA DINAMICĂ VIZUALĂ DE PROGRES */}
+      {loading && (
+        <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', padding: '14px 20px', borderRadius: '8px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px', color: '#1e40af' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: '#2563eb', borderRadius: '50%' }}></span>
+            <span>Motorul AI lucrează securizat... Vă rugăm să lăsați tab-ul deschis.</span>
+          </div>
+          <div>
+            {workMode === 'automatic' ? (
+              <span>Produse în lotul curent: <strong style={{ color: '#16a34a' }}>{batchCount} / 50</strong> (pauză de 3s activă)</span>
+            ) : (
+              <span>Progres coadă: <strong>{currentProgressIndex} / {selectedProductIds.length}</strong></span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TABEL CENTRAL CU SCROLL INFINIT INTEGRAT */}
+      {products.length > 0 && (
+        <div style={{ backgroundColor: '#fff', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+          <div 
+            ref={tableContainerRef}
+            onScroll={handleScroll}
+            style={{ maxHeight: '650px', overflowY: 'auto', position: 'relative' }}
+          >
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead style={{ backgroundColor: '#f3f4f6', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 10, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                <tr>
+                  <th style={{ padding: '14px 16px', width: '40px', textAlign: 'center' }}>
+                    <input 
+                      type="checkbox" 
+                      onChange={handleSelectAll} 
+                      checked={selectedProductIds.length === products.length && products.length > 0} 
+                      style={{ width: '17px', height: '17px', cursor: 'pointer' }}
+                    />
+                  </th>
+                  <th style={{ padding: '14px 16px', color: '#374151', fontSize: '14px', fontWeight: '600' }}>Titlu Original</th>
+                  <th style={{ padding: '14px 16px', color: '#374151', fontSize: '14px', fontWeight: '600' }}>Categorie</th>
+                  <th style={{ padding: '14px 16px', color: '#374151', fontSize: '14px', fontWeight: '600' }}>Titlu Shopify (SEO)</th>
+                  <th style={{ padding: '14px 16px', color: '#374151', fontSize: '14px', fontWeight: '600' }}>Titlu GMC (Factual)</th>
+                  <th style={{ padding: '14px 16px', color: '#374151', fontSize: '14px', fontWeight: '600' }}>Status / Acțiuni</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayedProducts.map((prod) => (
+                  <tr 
+                    key={prod.id} 
+                    onClick={() => openEditModal(prod.id)}
+                    style={{ borderBottom: '1px solid #e5e7eb', cursor: 'pointer', backgroundColor: selectedProductIds.includes(prod.id) ? '#fef08a/10' : 'transparent', transition: 'background-color 0.15s' }}
+                  >
+                    <td style={{ padding: '12px 16px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                      <input 
+                        type="checkbox" 
+                        checked={selectedProductIds.includes(prod.id)} 
+                        onChange={(e) => handleSelectProduct(prod.id, e)}
+                        style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                      />
+                    </td>
+                    <td style={{ padding: '12px 16px', color: '#111827', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '14px' }}>{prod.Title || prod.title}</td>
+                    <td style={{ padding: '12px 16px', color: '#2563eb', fontWeight: 'bold', fontSize: '12px' }}>{prod.detectedCategory}</td>
+                    <td style={{ padding: '12px 16px', color: prod.aiStatus === 'Sărit (Deja Optimizat)' ? '#9ca3af' : '#16a34a', fontWeight: '500', fontSize: '14px' }}>
+                      {prod.aiStatus === 'Se procesează...' ? 'Generare...' : (prod.optimizedTitle || (prod.aiStatus === 'Sărit (Deja Optimizat)' ? 'Sărit (Optimizat)' : '-'))}
+                    </td>
+                    <td style={{ padding: '12px 16px', color: '#ea580c', fontWeight: '500', fontSize: '14px' }}>{prod.gmcTitle || '-'}</td>
+                    <td style={{ padding: '12px 16px' }} onClick={(e) => e.stopPropagation()}>
+                      {prod.aiStatus === 'Optimizat' && prod.gmcStatus === 'Neinițiat' && (
+                        <button 
+                          onClick={(e) => {
+                            const internalIdx = products.findIndex(p => p.id === prod.id);
+                            generateGmcForSingleProduct(internalIdx, e);
+                          }}
+                          disabled={gmcLoadingIndex !== null}
+                          style={{ backgroundColor: '#ea580c', color: '#fff', padding: '6px 12px', borderRadius: '4px', border: 'none', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+                        >
+                          + Generează GMC
+                        </button>
+                      )}
+                      {(prod.aiStatus === 'Se procesează...' || prod.aiStatus === 'Sărit (Deja Optimizat)' || prod.gmcStatus !== 'Neinițiat') && (
+                        <span style={{ 
+                          backgroundColor: prod.aiStatus === 'Sărit (Deja Optimizat)' ? '#fee2e2' : (prod.gmcStatus === 'GMC Gata' ? '#ffedd5' : '#e5e7eb'), 
+                          color: prod.aiStatus === 'Sărit (Deja Optimizat)' ? '#991b1b' : (prod.gmcStatus === 'GMC Gata' ? '#c2410c' : '#374151'), 
+                          padding: '4px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: '600' 
+                        }}>
+                          {prod.aiStatus === 'Sărit (Deja Optimizat)' ? 'Sărit' : (prod.gmcStatus !== 'Neinițiat' ? prod.gmcStatus : prod.aiStatus)}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {visibleCount < products.length && (
+            <div style={{ textAlign: 'center', padding: '15px', color: '#4f46e5', backgroundColor: '#f9fafb', fontSize: '13px', fontWeight: '600', borderTop: '1px solid #e5e7eb', animate: 'pulse' }}>
+              ⬇️ Coborâți cu scroll-ul pentru a încărca restul produselor...
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* POP-UP DETALII MODAL */}
+      {editingProduct && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '20px' }}>
+          <div style={{ backgroundColor: '#fff', borderRadius: '8px', width: '100%', maxWidth: '980px', maxHeight: '95vh', overflowY: 'auto', padding: '30px' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#111827' }}>Editează Datele Generate de AI</h2>
+              <button onClick={() => setEditingProduct(null)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#9ca3af' }}>&times;</button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px' }}>
+              {/* SHOPIFY */}
+              <div>
+                <h3 style={{ color: '#16a34a', borderBottom: '2px solid #16a34a', paddingBottom: '4px', marginBottom: '12px', fontSize: '14px', fontWeight: 'bold' }}>DATE SHOPIFY & SEO</h3>
+                <div style={{ marginBottom: '10px' }}>
+                  <div style={labelStyle}><span>Titlu Optimizat Magazin</span><button onClick={() => regenerateSingleField('optimizedTitle', 'TITLE', false)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'optimizedTitle')}>🔄 Regenerază</button></div>
+                  <input type="text" value={editingProduct.optimizedTitle || ''} onChange={(e) => setEditingProduct({...editingProduct, optimizedTitle: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                </div>
+                <div style={{ marginBottom: '10px' }}>
+                  <div style={labelStyle}><span>Titlu SEO (Google Search)</span><button onClick={() => regenerateSingleField('seoTitle', 'SEOTITLE', false)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'seoTitle')}>🔄 Regenerază</button></div>
+                  <input type="text" value={editingProduct.seoTitle || ''} onChange={(e) => setEditingProduct({...editingProduct, seoTitle: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                </div>
+                <div style={{ marginBottom: '10px' }}>
+                  <div style={labelStyle}><span>Meta Descriere SEO</span><button onClick={() => regenerateSingleField('seoDescription', 'SEODESC', false)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'seoDescription')}>🔄 Regenerază</button></div>
+                  <textarea rows="2" value={editingProduct.seoDescription || ''} onChange={(e) => setEditingProduct({...editingProduct, seoDescription: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '13px' }}></textarea>
+                </div>
+                <div style={{ marginBottom: '10px' }}>
+                  <div style={labelStyle}><span>Descriere HTML Produs (Body HTML)</span><button onClick={() => regenerateSingleField('bodyHtml', 'BODY', false)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'bodyHtml')}>🔄 Regenerază</button></div>
+                  <textarea rows="5" value={editingProduct.bodyHtml || ''} onChange={(e) => setEditingProduct({...editingProduct, bodyHtml: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db', fontFamily: 'monospace', fontSize: '12px' }}></textarea>
+                </div>
+                <div style={{ marginBottom: '15px' }}>
+                  <div style={labelStyle}><span>Taguri</span><button onClick={() => regenerateSingleField('tags', 'TAGS', false)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'tags')}>🔄 Regenerază</button></div>
+                  <input type="text" value={editingProduct.tags || ''} onChange={(e) => setEditingProduct({...editingProduct, tags: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                </div>
+              </div>
+
+              {/* GMC */}
+              <div>
+                <h3 style={{ color: '#ea580c', borderBottom: '2px solid #ea580c', paddingBottom: '4px', marginBottom: '12px', fontSize: '14px', fontWeight: 'bold' }}>DATE GOOGLE MERCHANT CENTER (GMC)</h3>
+                <div style={{ marginBottom: '10px' }}>
+                  <div style={labelStyle}><span>Titlu Factual GMC</span><button onClick={() => regenerateSingleField('gmcTitle', 'GMC_TITLE', true)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'gmcTitle')}>🔄 Regenerază</button></div>
+                  <input type="text" value={editingProduct.gmcTitle || ''} onChange={(e) => setEditingProduct({...editingProduct, gmcTitle: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                </div>
+                <div style={{ marginBottom: '10px' }}>
+                  <div style={labelStyle}><span>Descriere Factuală GMC</span><button onClick={() => regenerateSingleField('gmcDescription', 'GMC_DESCRIPTION', true)} disabled={regenLoadingField !== null} style={regenBtnStyle(regenLoadingField === 'gmcDescription')}>🔄 Regenerază</button></div>
+                  <textarea rows="4" value={editingProduct.gmcDescription || ''} onChange={(e) => setEditingProduct({...editingProduct, gmcDescription: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '13px' }}></textarea>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                  <div>
+                    <div style={labelStyle}><span>Tip Produs</span></div>
+                    <input type="text" value={editingProduct.productType || ''} onChange={(e) => setEditingProduct({...editingProduct, productType: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                  </div>
+                  <div>
+                    <div style={labelStyle}><span>Categorie Google</span></div>
+                    <input type="text" value={editingProduct.googleCategory || ''} onChange={(e) => setEditingProduct({...editingProduct, googleCategory: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                  <div>
+                    <div style={labelStyle}><span>Brand</span></div>
+                    <input type="text" value={editingProduct.brand || ''} onChange={(e) => setEditingProduct({...editingProduct, brand: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                  </div>
+                  <div>
+                    <div style={labelStyle}><span>Culoare</span></div>
+                    <input type="text" value={editingProduct.color || ''} onChange={(e) => setEditingProduct({...editingProduct, color: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <div style={labelStyle}><span>Mărime</span></div>
+                    <input type="text" value={editingProduct.size || ''} onChange={(e) => setEditingProduct({...editingProduct, size: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                  </div>
+                  <div>
+                    <div style={labelStyle}><span>Material</span></div>
+                    <input type="text" value={editingProduct.material || ''} onChange={(e) => setEditingProduct({...editingProduct, material: e.target.value})} style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ACTION FOOTER */}
+            <div style={{ marginTop: '25px', borderTop: '1px solid #
