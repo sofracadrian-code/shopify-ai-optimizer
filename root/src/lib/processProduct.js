@@ -8,7 +8,7 @@ return {
 
 Title: seo.title,
 
-Body_HTML: seo.description
+'Body (HTML)': seo.description
 
 };
 }
