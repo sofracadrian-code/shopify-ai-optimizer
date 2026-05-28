@@ -1,23 +1,20 @@
 import dotenv from 'dotenv';
-import { generateText } from './src/services/openai.js';
+
+import { processCsv } from './src/lib/processCsv.js';
 
 dotenv.config();
 
-async function test() {
+async function start() {
 try {
-console.log('Testing OpenAI...');
+console.log('Starting CSV processing...');
 
-const response = await generateText(
-  'Write one short professional German ecommerce sentence.'
-);
+await processCsv();
 
-console.log('\nAI RESPONSE:\n');
-console.log(response);
+console.log('Finished.');
 
 } catch (error) {
-console.error('\nERROR:\n');
 console.error(error);
 }
 }
 
-test();
+start();
