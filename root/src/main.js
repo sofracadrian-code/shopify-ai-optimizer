@@ -1,17 +1,14 @@
 import dotenv from 'dotenv';
-import { generateSEO } from './src/lib/generateSEO.js';
+import { generateText } from './src/services/openai.js';
 
 dotenv.config();
 
-const product = {
-title: 'POCO F7 Pro',
-description: 'Smartphone with AMOLED display'
-};
-
 async function test() {
-const seo = await generateSEO(product);
+const response = await generateText(
+'Write one short German ecommerce sentence.'
+);
 
-console.log(seo);
+console.log(response);
 }
 
 test();
