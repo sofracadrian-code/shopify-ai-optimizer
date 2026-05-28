@@ -1,15 +1,19 @@
-import { processProduct } from '../../src/lib/processProduct.js';
+import { generateText } from '../../src/services/openai.js';
 
 export default async function handler(req, res) {
 try {
-const product = req.body;
+const response = await generateText(
+'Write one short German ecommerce sentence.'
+);
 
-const result = await processProduct(product);
-
-res.status(200).json(result);
+res.status(200).json({
+  success: true,
+  response
+});
 
 } catch (error) {
 res.status(500).json({
+success: false,
 error: error.message
 });
 }
